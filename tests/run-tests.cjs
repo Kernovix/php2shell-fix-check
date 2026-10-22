@@ -31,6 +31,7 @@ function handler(req,res){
   if(name==='hint.test'){res.setHeader('X-Powered-By','PHP');res.setHeader('Set-Cookie','PHPSESSID=COOKIE_VALUE_DO_NOT_LEAK; HttpOnly');return res.end('Application');}
   if(name==='old.test'||name==='chunked.test'||name==='big.test'){res.setHeader('X-Powered-By','PHP/8.3.35');}
   if(name==='fixed.test'){res.setHeader('X-Powered-By','PHP/8.3.36');}
+  if(name==='header-secret.test'){res.setHeader('X-Powered-By','PHP/8.3.35?token=DO_NOT_LEAK');}
   if(name==='chunked.test'){res.write('<link href="/wp-co');res.write('ntent/theme.css">');return res.end();}
   if(name==='big.test'){return res.end('x'.repeat(120000));}
   res.end('<html><title>Static service</title><p>Documentation about PHP.</p></html>');
@@ -97,7 +98,7 @@ async function simulated(engine,observations,evidence=[]){
       check(sim.find(r=>r.VulnerabilityCode==='FIXED')?.PHP==='8.3.6','reviewed vendor backport accepted');
       check(sim.some(r=>r.VulnerabilityCode==='VULNERABLE_CONFIRMED'),'reviewed affected runtime confirmed');
       check(sim.find(r=>r.PHP==='8.5.12'&&r.Service==='CLI')?.VulnerabilityCode==='INCONCLUSIVE','CLI never proves fixed');
-      const batch=await audit(engine,'plain.test=127.0.0.1,old.test=127.0.0.1,fixed.test=127.0.0.1,hint.test=127.0.0.1,redirect.test=127.0.0.1,chunked.test=127.0.0.1,big.test=127.0.0.1',[httpPort]);
+      const batch=await audit(engine,'plain.test=127.0.0.1,old.test=127.0.0.1,fixed.test=127.0.0.1,hint.test=127.0.0.1,redirect.test=127.0.0.1,chunked.test=127.0.0.1,big.test=127.0.0.1,header-secret.test=127.0.0.1',[httpPort]);
       const find=name=>batch.rows.find(r=>r.Target===name+'.test=127.0.0.1');
       if(find('plain')?.DiscoveryCode!=='PHP_NOT_IDENTIFIED')console.error(batch.rows.map(r=>({target:r.Target,discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error']})));
       check(find('plain')?.DiscoveryCode==='PHP_NOT_IDENTIFIED','HTTP without PHP distinguished');

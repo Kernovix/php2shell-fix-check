@@ -534,7 +534,7 @@ $worker = {
         if($reply.Headers.ContainsKey('Set-Cookie')){$cookie=$reply.Headers['Set-Cookie']}
         if($reply.Headers.ContainsKey('Location')){$location=$reply.Headers['Location']}
         $serverProduct='not advertised';if($server -match '(?i)\b(?:Apache|nginx|Microsoft-IIS|OpenResty|LiteSpeed|Caddy)(?:/[0-9][A-Za-z0-9._+-]*)?'){$serverProduct=$Matches[0]}
-        if("$server $powered" -match '(?i)PHP/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r\n]*)'){$version=$Matches[1]}
+        if("$server $powered" -match '(?i)PHP/([0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.+_-]*)'){$version=$Matches[1]}
         $cookieNames=@([regex]::Matches($cookie,'(?:^|[,;]\s*)([A-Za-z0-9_]+)=') | ForEach-Object {$_.Groups[1].Value}) -join ' '
         $fingerprint="$($reply.Body) $server $powered $cookieNames"
         $patterns=[ordered]@{WordPress='wp-content/|wp-includes/|generator[^>]*WordPress';Nextcloud='nextcloud|nc_sameSiteCookies';Joomla='joomla|/media/system/';Drupal='drupal|data-drupal|/sites/default/';Laravel='laravel|laravel_session';Magento='magento|/static/version[0-9]+/|mage/cookies';MediaWiki='mediawiki|mw-config|wgCanonicalNamespace';phpBB='phpbb';WHMCS='whmcs|/templates/six/|/templates/twenty-one/'}

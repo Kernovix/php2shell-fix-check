@@ -561,7 +561,7 @@ scan_host() {
   awk '/^HTTP\/[0-9.]+ /{headers="";active=1;next} active{if($0~/^\r?$/){active=0;next}headers=headers $0 "\n"}END{printf "%s",headers}' "$f" > "$WORK/headers-$index"
   banner=$(awk '{s=tolower($0);if(s~/^(server|x-powered-by):/)print}' "$WORK/headers-$index" | tr '\r\n' ' ' | head -c 1500)
   server_product=$(printf '%s' "$banner" | grep -Eio '(apache|nginx|microsoft-iis|openresty|litespeed|caddy)(/[0-9][A-Za-z0-9._+-]*)?' | head -n 1)
-  ver=$(printf '%s' "$banner" | sed -nE 's/.*[Pp][Hh][Pp]\/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r]*).*/\1/p')
+  ver=$(printf '%s' "$banner" | sed -nE 's/.*[Pp][Hh][Pp]\/([0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.+_-]*).*/\1/p')
   # Header cookie values never enter the fingerprint/report; names are enough.
   awk 'BEGIN{active=1}/^HTTP\/[0-9.]+ /{active=1;next}active&&/^\r?$/{active=0;next}!active{print}' "$f" | head -c 65536 > "$fp"
   printf '\n%s\n' "$banner" >> "$fp"
