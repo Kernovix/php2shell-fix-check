@@ -508,7 +508,7 @@ sanitize_error() {
  clean "$1" | sed -E 's#(https?://)[^ /@]+@#\1[redacted]@#g; s#(https?://[^? ]+)\?[^ ]*#\1?[redacted]#g; s/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*[:=].*/\1=[redacted]/g; s/([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[=:][[:space:]]*[^ ;]*/\1=[redacted]/g'
 }
 scan_host() {
- local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp connect_time tcp_connected
+ local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp connect_time tcp_connected client_failure=0
  case "$target" in *=*) host=${target%%=*};connect=${target#*=};; esac
  : > "$file"
  for p in ${PORTS//,/ }; do
@@ -542,7 +542,8 @@ scan_host() {
    esac
   fi
   if [ "$tcp_connected" -eq 0 ];then
-   error_code=TCP_FAILED;case "$rc" in 6) error_code=DNS_FAILURE;;28) error_code=TCP_TIMEOUT;;77) error_code=TLS_CA_INVALID;;esac
+   error_code=CLIENT_TRANSPORT_FAILED;case "$rc" in 6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;28) error_code=TCP_TIMEOUT;;77) error_code=TLS_CA_INVALID;;esac
+   [ "$error_code" != CLIENT_TRANSPORT_FAILED ] || client_failure=1
    grep -qi 'refused' "$WORK/curl-$index.err" && error_code=TCP_REFUSED
    failures="$failures${failures:+ | }$p: $error_code; curl=$rc; $(sanitize_error "$(head -c 600 "$WORK/curl-$index.err")")"
    continue
@@ -578,13 +579,14 @@ scan_host() {
   redirect=-
   case "$http" in 3??) redirect=$(awk 'tolower($0)~/^location:/{sub(/^[^:]*:[ ]*/,"");sub(/\r$/,"");print;exit}' "$WORK/headers-$index" | sed -E 's#[?#].*$##;s#(https?://)[^/@]+@#\1#g');;esac
   confidence=LOW;[ -z "$ver" ] || confidence=MEDIUM;[ "$tls" != DISABLED ] || confidence=LOW
-  detail="TCP open; HTTP=${http:--}; curl=$rc; bounded GET /; no redirects"
+  detail="TCP open; HTTP=${http:--}; curl=$rc; peer=${address:--}; connect=${connect_time:-unknown}; bounded GET /; no redirects"
   [ "$tls" != DISABLED ] || detail="$detail; TLS validation explicitly disabled; no trust assurance"
   svc=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
   emit "$target" "$host" - "$svc:$p" "web:$p" "$app" "${ver:--}" - SIM "$detail" "${address:--}" "$discovery" "${http:--}" "$tls" "$error_code" "$error_detail" "${redirect:--}" "$confidence" >> "$file"
  done
  if [ "$any" -eq 0 ]; then
   discovery=NO_WEB_SERVICE;error_code=NO_TCP_RESPONSE
+  if [ "$client_failure" -eq 1 ];then discovery=CONNECTION_ERROR;error_code=CLIENT_TRANSPORT_FAILED;fi
   case "$failures" in *DNS_FAILURE*) discovery=CONNECTION_ERROR;error_code=DNS_FAILURE;;esac
   address=-;case "$connect" in *[!0-9.]*) :;;*) address=$connect;;esac
   emit "$target" "$host" - DISCOVERY host - - - DESCONHECIDO 'No web service detected on tested ports; PHP is not ruled out' "$address" "$discovery" - - "$error_code" "$(sanitize_error "$failures")" - LOW >> "$file"

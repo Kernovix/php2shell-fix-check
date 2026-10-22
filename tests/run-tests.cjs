@@ -131,6 +131,7 @@ async function simulated(engine,observations,evidence=[]){
       if(malformed.rows[0]?.DiscoveryCode!=='CONNECTION_ERROR')console.error(malformed.rows.map(r=>({discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error'],evidence:r.Evidence})));
       check(malformed.rows[0]?.DiscoveryCode==='CONNECTION_ERROR','non-HTTP port not confirmed as web');
       const dns=await audit(engine,'localhost',[httpPort]);
+      if(!(dns.rows[0]?.HTTP==='200'&&dns.rows[0]?.IP==='127.0.0.1'))console.error(dns.rows.map(r=>({target:r.Target,IP:r.IP,HTTP:r.HTTP,discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error'],evidence:r.Evidence})));
       check(dns.rows[0]?.HTTP==='200'&&dns.rows[0]?.IP==='127.0.0.1','DNS hostname resolution');
       const range=await audit(engine,'127.0.0.1-2,127.0.0.1',[closedPort]);
       check(range.rows.length===2,'IP range and deduplication preserved');
