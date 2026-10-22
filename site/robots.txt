@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kernovix.github.io/php2shell-fix-check/sitemap.xml
+
+# This project-level file documents crawler intent. Crawlers normally read
+# robots.txt at the host root; this page also declares index/follow in HTML.
