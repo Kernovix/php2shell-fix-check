@@ -508,31 +508,36 @@ sanitize_error() {
  clean "$1" | sed -E 's#(https?://)[^ /@]+@#\1[redacted]@#g; s#(https?://[^? ]+)\?[^ ]*#\1?[redacted]#g; s/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*[:=].*/\1=[redacted]/g; s/([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[=:][[:space:]]*[^ ;]*/\1=[redacted]/g'
 }
 scan_host() {
- local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp
+ local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp connect_time tcp_connected
  case "$target" in *=*) host=${target%%=*};connect=${target#*=};; esac
  : > "$file"
  for p in ${PORTS//,/ }; do
-  timeout "$TIMEOUT" bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$connect" "$p" >/dev/null 2> "$WORK/tcp-$index.err"
-  rc=$?
-  if [ "$rc" -ne 0 ]; then
-   error_code=TCP_FAILED; [ "$rc" -ne 124 ] || error_code=TCP_TIMEOUT
-   grep -qi 'refused' "$WORK/tcp-$index.err" && error_code=TCP_REFUSED
-   grep -Eqi 'Name or service not known|could not resolve|nodename nor servname|Temporary failure in name resolution|Name does not resolve' "$WORK/tcp-$index.err" && error_code=DNS_FAILURE
-   failures="$failures${failures:+ | }$p: $error_code; $(sanitize_error "$(head -c 400 "$WORK/tcp-$index.err")")"
-   continue
-  fi
-  any=1;scheme=http;case ",$TLS_PORTS," in *",$p,"*) scheme=https;;esac
+  scheme=http;case ",$TLS_PORTS," in *",$p,"*) scheme=https;;esac
   f="$WORK/response-$index";fp="$WORK/fingerprint-$index";local extra=()
   [ "$INSECURE" -eq 0 ] || extra=(-k)
   [ "$host" = "$connect" ] || extra+=(--resolve "$host:$p:$connect")
   # A capped combined stream avoids unbounded temporary headers or bodies.
   curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
    --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
-   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err" | head -c 98304 > "$f"
+   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err" | head -c 98304 > "$f"
   rc=${PIPESTATUS[0]}
   http=$(awk '/^HTTP\/[0-9.]+ [0-9]+/{code=$2}END{if(code+0>=200)print code}' "$f")
-  address=-
-  if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ]; then address=$(tail -n 1 "$f" | sed -nE 's/^AUDIT_META:[0-9]+:([0-9.]+)$/\1/p');fi
+  address=-;connect_time=0
+  if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ];then
+   address=$(tail -n 1 "$f" | sed -nE 's/^AUDIT_META:[0-9]+:([0-9.]+):[0-9.]+$/\1/p')
+   connect_time=$(tail -n 1 "$f" | sed -nE 's/^AUDIT_META:[0-9]+:[0-9.]*:([0-9.]+)$/\1/p')
+  fi
+  tcp_connected=0
+  [ -z "$http" ] || tcp_connected=1
+  awk -v n="${connect_time:-0}" 'BEGIN{exit !(n+0>0)}' && tcp_connected=1
+  case "$rc" in 35|51|60) tcp_connected=1;;esac
+  if [ "$tcp_connected" -eq 0 ];then
+   error_code=TCP_FAILED;case "$rc" in 6) error_code=DNS_FAILURE;;28) error_code=TCP_TIMEOUT;;77) error_code=TLS_CA_INVALID;;esac
+   grep -qi 'refused' "$WORK/curl-$index.err" && error_code=TCP_REFUSED
+   failures="$failures${failures:+ | }$p: $error_code; $(sanitize_error "$(head -c 600 "$WORK/curl-$index.err")")"
+   continue
+  fi
+  any=1
   if [ -z "$address" ] || [ "$address" = - ]; then case "$connect" in *[!0-9.]* ) address=-;;*) address=$connect;;esac;fi
   # Only the final response header block is eligible for version evidence.
   awk '/^HTTP\/[0-9.]+ /{headers="";active=1;next} active{if($0~/^\r?$/){active=0;next}headers=headers $0 "\n"}END{printf "%s",headers}' "$f" > "$WORK/headers-$index"
@@ -544,14 +549,16 @@ scan_host() {
   awk 'tolower($0)~/^set-cookie:/{sub(/^[^:]*:[ ]*/,"");split($0,a,"=");print a[1]}' "$WORK/headers-$index" >> "$fp"
   app=$(fingerprint "$fp");php_hint=0
   [ "$app" = - ] || php_hint=1
-  grep -Eiq 'PHPSESSID|(^|[^A-Za-z])PHP([^A-Za-z]|$)' "$fp" && php_hint=1
+  # A page merely discussing PHP is not PHP evidence: inspect headers/cookie names.
+  { printf '%s\n' "$banner";awk 'tolower($0)~/^set-cookie:/{sub(/^[^:]*:[ ]*/,"");split($0,a,"=");print a[1]}' "$WORK/headers-$index"; } > "$WORK/php-hints-$index"
+  grep -Eiq 'PHPSESSID|(^|[^A-Za-z])PHP([^A-Za-z]|$)' "$WORK/php-hints-$index" && php_hint=1
   discovery=PHP_NOT_IDENTIFIED;[ "$php_hint" -eq 0 ] || discovery=PHP_NO_VERSION;[ -z "$ver" ] || discovery=PHP_VERSION_IDENTIFIED
   [ -n "$http" ] || discovery=CONNECTION_ERROR
   error_code='-';error_detail='-'
   case "$rc" in
    0) :;;
    23) [ "$(wc -c < "$f")" -ge 98304 ] || error_code=HTTP_WRITE_FAILED;;
-   28) error_code=HTTP_TIMEOUT;; 35) error_code=TLS_HANDSHAKE_FAILED;;51|60) error_code=TLS_CERTIFICATE_INVALID;;77) error_code=TLS_CA_INVALID;;6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;18) error_code=BODY_INCOMPLETE;;52) error_code=HTTP_EMPTY_RESPONSE;;56) error_code=HTTP_READ_FAILED;;*) error_code="CURL_$rc";;
+   28) error_code=REQUEST_TIMEOUT;; 35) error_code=TLS_HANDSHAKE_FAILED;;51|60) error_code=TLS_CERTIFICATE_INVALID;;77) error_code=TLS_CA_INVALID;;6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;18) error_code=BODY_INCOMPLETE;;52) error_code=HTTP_EMPTY_RESPONSE;;56) error_code=HTTP_READ_FAILED;;*) error_code="CURL_$rc";;
   esac
   [ "$error_code" = - ] || error_detail=$(sanitize_error "$(head -c 2000 "$WORK/curl-$index.err")")
   tls=NOT_APPLICABLE

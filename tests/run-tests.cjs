@@ -32,7 +32,7 @@ function handler(req,res){
   if(name==='fixed.test'){res.setHeader('X-Powered-By','PHP/8.3.36');}
   if(name==='chunked.test'){res.write('<link href="/wp-co');res.write('ntent/theme.css">');return res.end();}
   if(name==='big.test'){return res.end('x'.repeat(120000));}
-  res.end('<html><title>Static service</title></html>');
+  res.end('<html><title>Static service</title><p>Documentation about PHP.</p></html>');
 }
 const available=exe=>spawnSync(exe,['--version'],{windowsHide:true}).status===0;
 const bash=process.env.AUDIT_BASH||(win?path.join(pf,'Git/bin/bash.exe'):'/bin/bash');
