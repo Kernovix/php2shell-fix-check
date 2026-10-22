@@ -122,6 +122,7 @@ async function simulated(engine,observations,evidence=[]){
       check(sni.includes('old.test'),'correct SNI reached TLS fixture');
       process.stdout.write(engine.id+': TLS validation and SNI passed\n');
       const refused=await audit(engine,'127.0.0.1',[closedPort]);
+      if(refused.rows[0]?.DiscoveryCode!=='NO_WEB_SERVICE')console.error(refused.rows.map(r=>({target:r.Target,IP:r.IP,HTTP:r.HTTP,discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error'],evidence:r.Evidence})));
       check(refused.rows[0]?.DiscoveryCode==='NO_WEB_SERVICE','closed ports separated');
       check(/TCP_(REFUSED|TIMEOUT|FAILED)/.test(refused.rows[0]?.['Technical error']),'connection refusal or OS timeout diagnosed');
       check(refused.html.includes('class="no-response"'),'no-response HTML section separate');
