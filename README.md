@@ -1,128 +1,176 @@
-# PHP2Shell Fix Check — CVE-2026-109618 & CVE-2026-109619
+# PHP2Shell Fix Check
 
-**Autor / Author: Kernovix**
+**Choose your language / Escolha o idioma**
 
-**Check PHP2Shell exposure and prepare remediation.** Read-only PHP vulnerability auditing for Linux and Windows: discover PHP services, collect version evidence and identify what needs attention before patching. Two standalone Bash/PowerShell scripts, with English/Portuguese HTML and CSV reports. No Ansible, agents or installation on target servers.
+| Português | English |
+| --- | --- |
+| [Ler o manual em português →](README.pt.md#português) | [Read the English guide →](#english) |
 
-**Verifique a exposição ao PHP2Shell e prepare a correção.** Auditoria PHP de leitura para Linux e Windows: descubra serviços, recolha evidências de versões e identifique o que precisa de atenção antes de atualizar. Dois scripts independentes, com relatórios HTML e CSV em português ou inglês. Sem Ansible, agentes ou instalação nos servidores.
+**CVE-2026-109618 · CVE-2026-109619**
 
-**Fix Check means assessment, not automatic patching.** This tool does not apply fixes or certify remediation from a banner or CLI version. **Fix Check significa verificação, não correção automática:** a ferramenta não aplica patches nem certifica a correção através de banners ou versões CLI.
-
-[Português](#português) · [English](#english)
-
-## Português
-
-**Só precisa de indicar os alvos e escolher o idioma: `pt` ou `en`.** Use apenas redes autorizadas.
-
-No **Windows**, abra `PHP-Audit.ps1` no PowerShell ISE e carregue em **F5**. Responda às duas perguntas: rede/IPs e idioma. Também pode executar no PowerShell:
-
-```powershell
-.\PHP-Audit.ps1 '192.168.1.0/24' pt
-```
-
-No **Linux**, abra um terminal na pasta do script:
-
-```bash
-bash php_audit.sh '192.168.1.0/24' pt
-```
-
-Sem argumentos, ambos pedem os alvos e o idioma. Não precisa de editar código, preencher nome de cliente ou change. Em execução não interativa, o idioma predefinido é português.
-
-**Resultado:** abra `reports/<data-hora>/report.html`, ao lado do script. O caminho aparece no final. A tabela mostra IP/nome, serviço, aplicação, PHP, estado e o que fazer. **Ver detalhes** expande as evidências. `report.csv` permite importar para Excel (UTF-8, separador vírgula). Ambos usam o idioma escolhido.
-
-**POTENCIALMENTE VULNERÁVEL** pede confirmação de possíveis backports do fornecedor. **INCONCLUSIVO** significa que faltam provas: nunca significa seguro. CLI, banners e pacotes em disco, isoladamente, não comprovam a correção do site ou de todo o servidor.
+A project by **[Kernovix](https://github.com/Kernovix)** · [Project website](https://kernovix.github.io/php2shell-fix-check/)
 
 ## English
 
-**Provide authorized targets and choose the report language: `en` or `pt`.**
+**Discover PHP services, collect version evidence and prepare remediation for PHP2Shell.** Two independent scripts: Bash for Linux and PowerShell for Windows. Run from one machine inside an authorized network and receive local HTML and CSV reports.
+
+No Ansible, permanent agents or installation on target servers. **Fix Check performs assessment; it does not apply patches.** Use it only on systems you are authorized to audit.
+
+### 1. Download your script
+
+| Your computer | Download |
+| --- | --- |
+| Windows | [PHP-Audit.ps1](https://github.com/Kernovix/php2shell-fix-check/raw/refs/heads/main/PHP-Audit.ps1) |
+| Linux | [php_audit.sh](https://github.com/Kernovix/php2shell-fix-check/raw/refs/heads/main/php_audit.sh) |
+
+Save the file in a folder on your computer. You only need the script for your operating system.
+
+### 2. Run it
+
+Replace `192.168.1.0/24` with your authorized IPs or network. The final argument, `en`, selects English reports; use `pt` for Portuguese reports. The documentation language and report language are independent.
+
+**Windows:** open PowerShell in the script's folder and run:
 
 ```powershell
 .\PHP-Audit.ps1 '192.168.1.0/24' en
 ```
 
+Alternatively, open `PHP-Audit.ps1` in **PowerShell ISE**, press **F5**, and answer the two questions: targets and report language. Follow your organization's script execution policy.
+
+**Linux:** open a terminal in the script's folder and run:
+
 ```bash
 bash php_audit.sh '192.168.1.0/24' en
 ```
 
-On Windows, you can open `PHP-Audit.ps1` in **PowerShell ISE**, press **F5**, enter your targets and choose `en`. With no arguments, both scripts ask these two questions. No code editing, customer name or change number is required. Non-interactive runs default to Portuguese unless `en` is supplied.
+With no arguments in an interactive terminal, both scripts ask for targets and language. No code editing is needed. Non-interactive runs default to Portuguese unless you specify `en`.
 
-**Results:** open `reports/<timestamp>/report.html`, next to the script. The exact path is printed when finished. The short table shows IP/hostname, service, application, PHP, status and recommended action. **View details** expands evidence. `report.csv` is provided for Excel (UTF-8, comma delimiter). Both reports use the selected language.
+**What can I put in the target field?**
 
-**POTENTIALLY VULNERABLE** needs vendor backport verification. **INCONCLUSIVE** means insufficient evidence: never treat it as safe. CLI versions, banners and installed packages alone do not prove a website or an entire server is fixed.
+| Scope | Example |
+| --- | --- |
+| One server | `'192.168.1.10'` |
+| Several servers | `'192.168.1.10,192.168.1.20'` |
+| An IP range | `'192.168.1.10-30'` or `'192.168.1.10-192.168.1.30'` |
+| A subnet | `'192.168.1.0/24'` |
 
-## Alvos / Targets
+### 3. Open the report
 
-| Tipo / Type | Exemplo / Example |
-|---|---|
-| IP | `192.168.1.10` |
-| Lista / List | `'192.168.1.10,192.168.1.20'` |
-| Intervalo / Range | `'192.168.1.10-192.168.1.30'` or `'192.168.1.10-30'` |
-| Sub-rede / Subnet | `'192.168.1.0/24'` |
+When the audit finishes, the script prints the report location. Open **`report.html`** inside `reports/<timestamp>/`, next to your script. A **`report.csv`** is saved in the same folder for Excel (UTF-8, comma delimiter).
+
+The HTML table shows IP/hostname, service, application, PHP version, status and recommended action. Select **View details** to expand the evidence. Both files use your selected report language.
+
+| Status | What it means |
+| --- | --- |
+| **POTENTIALLY VULNERABLE** | The version needs investigation. Check vendor backports and the web runtime before concluding it is vulnerable. |
+| **INCONCLUSIVE** | Evidence is missing or insufficient. This never means safe. |
+| **VULNERABLE** | Reviewed evidence linked to the web runtime confirms that at least one CVE affects it. |
+| **FIXED** | Reviewed evidence matching the web runtime and both CVEs confirms a fix for that observation; it does not certify the whole server. |
+
+**A CLI version or HTTP banner alone cannot prove that a website is fixed. No PHP detection or no response does not prove the absence of a vulnerability.** The scripts do not automatically certify vendor backports. Keep reports and target lists private.
+
+### What the scripts check
+
+- TCP ports **80, 443, 8080 and 8443**, followed by a bounded HTTP `GET /`. Additional ports, timeouts and concurrency are configurable.
+- PHP and application hints: **WordPress, Nextcloud, Joomla, Drupal, Laravel, Magento, MediaWiki, phpBB and WHMCS**. Fingerprints are indicators, not proof.
+- Optional remote inventory through existing authorized access: Linux via **SSH**, Windows via **PowerShell Remoting / WinRM**. Collects hostname, OS, PHP versions and service/package evidence, subject to permissions.
+- **PHP-FPM, Apache/mod_php, Nginx, IIS and Docker metadata**, where applicable and accessible. Docker metadata does not establish the PHP version inside a container.
+
+Failures on individual targets do not stop the remaining audit. Public exposure can be declared by the technician; the scripts do not test reachability from the Internet.
+
+### Requirements and optional settings
 
 <details>
-<summary>Requisitos e opções facultativas / Requirements and optional settings</summary>
+<summary>Minimum requirements and default settings</summary>
 
-- **Linux:** Bash 3.2+, curl 7.21+ with HTTPS, coreutils (including timeout/mktemp), awk, grep and sed.
+- **Linux:** Bash 3.2+, curl 7.21+ with HTTPS, coreutils (including `timeout` and `mktemp`), awk, grep and sed.
 - **Windows:** Windows PowerShell 5.1 with .NET Framework 4.7.2+, or PowerShell 7 on Windows.
-- Portas / Ports: **80, 443, 8080, 8443**. Concorrência / Workers: **8**. Limite / Limit: **4096 IPs**. IPv4 only. `/31` and `/32` include all addresses; larger subnets omit network/broadcast.
-- Outras portas / Other ports: Bash `--ports 80,443,8000`; PowerShell `-Ports 80,443,8000`. TLS: `--tls-ports` / `-TlsPorts`. Concorrência / Workers: `--concurrency 4` / `-Concurrency 4`.
-- Exposição pública conhecida / Known public exposure: `--public-targets 'IP'` / `-PublicTargets 'IP'` (informada pelo técnico, não testada da Internet / technician-reported, not tested from the Internet).
+- **Defaults:** ports `80,443,8080,8443`; TLS on `443,8443`; **8** concurrent workers; maximum **4,096 IPv4 addresses**.
+- **IPv4 only.** `/31` and `/32` include every address; larger subnets omit network and broadcast addresses.
 
-Inventário remoto facultativo, com acessos existentes e autorizados / Optional remote inventory using existing authorized access:
+</details>
+
+<details>
+<summary>Change ports, concurrency or declared public exposure</summary>
+
+| Setting | Bash | PowerShell |
+| --- | --- | --- |
+| Ports | `--ports 80,443,8000` | `-Ports 80,443,8000` |
+| TLS ports | `--tls-ports 443,8443` | `-TlsPorts 443,8443` |
+| Concurrent workers | `--concurrency 4` | `-Concurrency 4` |
+| Network timeout, seconds | `--timeout 5` | `-TimeoutSeconds 5` |
+| Known public exposure | `--public-targets '192.168.1.10'` | `-PublicTargets '192.168.1.10'` |
+
+Append the options to your normal command. Example:
 
 ```bash
-bash php_audit.sh '192.168.1.0/24' pt --ssh-user auditor
+bash php_audit.sh '192.168.1.0/24' en --ports 80,443,8000 --concurrency 4
 ```
+
+```powershell
+.\PHP-Audit.ps1 '192.168.1.0/24' en -Ports 80,443,8000 -Concurrency 4
+```
+
+Public exposure is technician-reported, not verified from the Internet.
+
+</details>
+
+<details>
+<summary>Enable optional SSH or WinRM inventory</summary>
+
+For **Linux targets**, use Bash with an existing SSH key or ssh-agent and verified host keys:
+
+```bash
+bash php_audit.sh '192.168.1.0/24' en --ssh-user auditor
+```
+
+For **Windows targets**, use PowerShell with existing authorized WinRM access:
 
 ```powershell
 .\PHP-Audit.ps1 '192.168.1.0/24' en -Credential (Get-Credential) -UseSSL
 ```
 
-SSH usa chave/ssh-agent e host keys verificadas; WinRM usa a configuração existente. Não altera autenticação, firewall ou TrustedHosts. Bash inventaria Linux por SSH; PowerShell inventaria Windows por WinRM. A descoberta HTTP funciona em qualquer SO. Falhas não interrompem os restantes alvos.
-
-SSH uses keys/ssh-agent and verified host keys; WinRM uses existing configuration. No authentication, firewall or TrustedHosts changes. Bash inventories Linux through SSH; PowerShell inventories Windows through WinRM. HTTP discovery is OS-independent. Failures do not stop other targets.
+There are no SSH password or sudo prompts. WinRM uses your existing configuration; the script does not change authentication, firewall rules or TrustedHosts. HTTP discovery is OS-independent. Missing permissions can leave inventory partial or inconclusive.
 
 </details>
 
-## Limites / Limitations
+### Try it without scanning a network
 
-Inventário de leitura: TCP e `GET /` limitado. Sem exploits, DoS, contorno de WAFs, instalação, atualização ou reinício. Passwords, valores de cookies e corpos HTTP não são incluídos nos relatórios. Sites por nome/SNI, proxies, outros caminhos, contentores e instalações ocultas podem não ser identificados. Ausência de resposta ou deteção PHP **não prova ausência de vulnerabilidade**.
-
-Read-only TCP and bounded `GET /` inventory. No exploits, DoS, WAF bypass, installation, updates or restarts. Passwords, cookie values and HTTP bodies are not included in reports. Name-based/SNI sites, proxies, other paths, containers and hidden installations may be missed. No response or no PHP detection **does not prove safety**.
-
-Indícios / Fingerprints: WordPress, Nextcloud, Joomla, Drupal, Laravel, Magento, MediaWiki, phpBB, WHMCS. Inventário remoto / Remote inventory: PHP-FPM, Apache/mod_php, Nginx, IIS, Docker, subject to existing permissions. Application fingerprints are hints.
-
-Referência / Reference (2026-10-22): **PHP 8.2.35, 8.3.36, 8.4.27, 8.5.12**. PHP ≤8.1: confirmar suporte e backports / check vendor support and backports. Debian, Ubuntu and RHEL package revisions cannot be judged solely by the upstream PHP version. The scripts preserve evidence and do not automatically certify vendor backports. Estados confirmados exigem evidência do runtime web e das duas CVEs / Confirmed states require evidence of the web runtime and both CVEs.
-
-## Teste sem rede / Offline check
+The built-in self-test checks version and classification logic, then generates clearly marked simulated HTML and CSV reports. It makes no network requests.
 
 ```bash
 bash php_audit.sh --self-test en
 ```
 
 ```powershell
-.\PHP-Audit.ps1 -SelfTest -Language pt
+.\PHP-Audit.ps1 -SelfTest -Language en
 ```
 
-Testes integrados verificam versões e classificação e geram relatórios fictícios identificados como simulação, sem rede nem ficheiros de teste adicionais. Built-in tests check versions and conservative classification, then generate clearly marked simulated reports without network access or extra test files.
+### PHP fix reference
 
-## Fontes / Sources
+These are the first upstream releases used by the scripts as the reference for both CVEs:
 
-[PHP security advisory](https://www.php.net/archive/2026.php) · [CVE-2026-109618](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) · [CVE-2026-109619](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp) · [Debian](https://security-tracker.debian.org/tracker/CVE-2026-109618) · [Ubuntu](https://ubuntu.com/security/CVE-2026-109618) · [Red Hat](https://access.redhat.com/security/cve/cve-2026-109618)
+| PHP branch | First fixed release |
+| --- | --- |
+| 8.2 | **8.2.35** |
+| 8.3 | **8.3.36** |
+| 8.4 | **8.4.27** |
+| 8.5 | **8.5.12** |
 
-<details>
-<summary>Publicar no GitHub / Publish on GitHub</summary>
+Use the fixed release or a newer stable release in the same branch. For **PHP 8.1 and earlier**, check vendor/LTS support and backports or migrate to a supported branch.
 
-Repository name / Nome do repositório: **`php2shell-fix-check`**.
+Debian, Ubuntu and RHEL packages may carry fixes under older upstream version numbers. Check the vendor's advisory for **both CVEs** and verify the runtime actually serving web requests. An application update alone is not proof that its PHP runtime has been fixed.
 
-Description: **Read-only PHP2Shell audit for CVE-2026-109618 and CVE-2026-109619. Discover PHP services and prepare remediation. Linux Bash + Windows PowerShell; EN/PT HTML and CSV reports.**
+### Limits and authorized use
 
-Topics: `php2shell`, `php-security`, `cve-2026-109618`, `cve-2026-109619`, `vulnerability-assessment`, `patch-management`, `remediation`, `bash`, `powershell`, `security-audit`.
+Read-only inventory: TCP checks and bounded `GET /` requests. No exploits, DoS tests, WAF bypass, installation, updates or restarts. Passwords, cookie values and HTTP response bodies are not included in reports.
 
-Publicar apenas os dois scripts, README e ficheiros de configuração Git. Relatórios, listas de alvos, credenciais e chaves estão excluídos pelo `.gitignore`. Não publicar a pasta interna `.git` como ficheiros de um arquivo. Rever a identidade dos autores dos commits e a conta/organização usada na publicação: o proprietário do repositório ficará público.
+Name-based/SNI virtual hosts, proxies, other paths, hidden installations and restricted containers may be missed. Agree your authorized scope before running the audit. **Insufficient evidence remains INCONCLUSIVE.**
 
-Publish only the two scripts, README and Git configuration files. Reports, target lists, credentials and private keys are excluded by `.gitignore`. Do not distribute the internal `.git` directory as archive contents. Review commit authors and the publishing account/organization: repository ownership is public.
+### Sources
 
-Use the description and topics above in GitHub About. Link to the public repository from relevant documentation you control. Descriptive titles and useful documentation help discovery; [Google recommends concise titles without keyword stuffing](https://developers.google.com/search/docs/appearance/title-link). [Crawling may take days or weeks and indexing is not guaranteed](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl). Use a descrição e os tópicos acima no GitHub About; a indexação rápida não pode ser garantida.
+[PHP security advisory](https://www.php.net/archive/2026.php#2026-10-21-5) · [CVE-2026-109618](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) · [CVE-2026-109619](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp) · [Debian](https://security-tracker.debian.org/tracker/CVE-2026-109618) · [Ubuntu](https://ubuntu.com/security/CVE-2026-109618) · [Red Hat](https://access.redhat.com/security/cve/cve-2026-109618)
 
-</details>
+---
+
+[Português →](README.pt.md#português) · [Back to the top ↑](#php2shell-fix-check)
