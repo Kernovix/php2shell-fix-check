@@ -104,6 +104,7 @@ async function simulated(engine,observations,evidence=[]){
       check(find('fixed')?.VulnerabilityCode==='INCONCLUSIVE','patched banner not certified');
       check(find('hint')?.DiscoveryCode==='PHP_NO_VERSION','PHP session/header without version');
       check(find('chunked')?.Application?.includes('WordPress'),'chunked body decoded');
+      check(batch.html.includes('WordPress (hint)'),'application hints visible in HTML details');
       check(find('big')?.PHP==='8.3.35','large body preserves version headers');
       check(find('redirect')?.HTTP==='302','redirect response counted');
       check(Object.values(find('redirect')).includes('https://offscope.invalid/login'),'redirect retained without query/fragment');

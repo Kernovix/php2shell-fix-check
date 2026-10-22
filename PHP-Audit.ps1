@@ -709,7 +709,7 @@ $csv=($exportRows|ConvertTo-Csv -NoTypeInformation) -join "`r`n"
 function Report-Table($Rows){
     $head=@('target','service','discovery','php','vulnerability','confidence','action')|ForEach-Object {'<th scope="col">'+(Encode-Html (T $_))+'</th>'}
     $body=@(foreach($row in $Rows){
-        $technical="IP=$($row.IP); $(T host)=$($row.Hostname); $(T os)=$($row.OS); $($row.Runtime); $($row.Package); HTTP=$($row.HTTPStatus); TLS=$($row.TLSValidation); $($row.ErrorCode); $($row.ErrorDetail); $(T redirect)=$($row.RedirectTo); $(T public)=$($row.PublicExposure); $($row.Evidence)"
+        $technical="IP=$($row.IP); $(T host)=$($row.Hostname); $(T os)=$($row.OS); $(T app)=$($row.Application); $($row.Runtime); $($row.Package); HTTP=$($row.HTTPStatus); TLS=$($row.TLSValidation); $($row.ErrorCode); $($row.ErrorDetail); $(T redirect)=$($row.RedirectTo); $(T public)=$($row.PublicExposure); $(T risk)=$($row.Risk); $(T reachable)=$($row.Reachable); $($row.Evidence)"
         '<tr><td><strong>'+(Encode-Html $row.Target)+'</strong><details><summary>'+(T details)+'</summary><p>'+(Encode-Html $technical)+'</p></details></td><td>'+(Encode-Html $row.Service)+'</td><td>'+(Encode-Html $row.Discovery)+'</td><td>'+(Encode-Html $row.PHPVersion)+'</td><td>'+(Encode-Html $row.Vulnerability)+'</td><td>'+(Encode-Html $row.Confidence)+'</td><td>'+(Encode-Html $row.Recommendation)+'</td></tr>'
     })
     '<div class="table"><table><thead><tr>'+($head -join '')+'</tr></thead><tbody>'+($body -join "`n")+'</tbody></table></div>'

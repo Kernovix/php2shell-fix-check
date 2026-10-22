@@ -740,7 +740,7 @@ while IFS="$TAB" read -r target hostname os svc rid app ver pkg reachable detail
  emit "$target" "$group" "$http" "$discovery" "$error_code" "$vcode" "$address" >> "$WORK/stats"
  {
   printf '<tr><td><strong>';html_cell "$target";printf '</strong><details><summary>%s</summary><p>' "$(t details)"
-  html_cell "IP=$address; $(t host)=$hostname; $(t os)=$os; $rid; $pkg; HTTP=$http; TLS=$tls; $error_code; $error_detail; $(t redirect)=$redirect; $(t public)=$exposure; $detail"
+  html_cell "IP=$address; $(t host)=$hostname; $(t os)=$os; $(t app)=$app; $rid; $pkg; HTTP=$http; TLS=$tls; $error_code; $error_detail; $(t redirect)=$redirect; $(t public)=$exposure; $(t risk)=$risk; $(t reachable)=$reachable; $detail"
   printf '</p></details></td>'
   for value in "$svc" "$(t "$discovery")" "$ver" "$status" "$(t "confidence_$confidence")" "$action";do printf '<td>';html_cell "$value";printf '</td>';done;printf '</tr>\n'
  } > "$WORK/row.html"
