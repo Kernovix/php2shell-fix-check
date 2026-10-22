@@ -50,7 +50,8 @@ function audit(engine,targets,ports,extra=[],language='en'){
   const args=engine.id==='bash'?[snapshots['php_audit.sh'],targets,language,'--ports',ports.join(','),'--tls-ports',String(tlsPort),'--timeout','1','--out',out,...extra]:['-NoProfile','-File',snapshots['PHP-Audit.ps1'],targets,language,'-Ports',ports.join(','),'-TlsPorts',String(tlsPort),'-TimeoutSeconds','1','-OutDir',out,...extra];
   // PowerShell -File does not bind a comma string to int[]; use a single port per call.
   assert.equal(ports.length,1);
-  return command(engine.exe,args).then(()=>{
+  return command(engine.exe,args).then(output=>{
+    if(/fork:|Resource temporarily unavailable|Too many open files|command not found|No such file or directory/.test(output))console.error(output);
     const dir=fs.readdirSync(out).find(n=>fs.statSync(path.join(out,n)).isDirectory());assert.ok(dir,'No report output');
     const csvText=fs.readFileSync(path.join(out,dir,'report.csv'),'utf8'),html=fs.readFileSync(path.join(out,dir,'report.html'),'utf8');
     check(!csvText.includes("\"'-\""),'unknown CSV markers are blank');check(!/COOKIE_VALUE_DO_NOT_LEAK|DO_NOT_LEAK/.test(csvText+html),'no cookie/query secrets in reports');

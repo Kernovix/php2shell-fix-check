@@ -2,6 +2,7 @@
 # PHP2Shell Fix Check. Bash >=3.2; read-only inventory and remediation guidance.
 # Author / Autor: Kernovix
 # Rules reviewed against php.net on 2026-10-22. See README.md.
+set +e
 set -u
 set -o pipefail
 umask 077
@@ -267,6 +268,9 @@ fi
 for c in awk sed sort head tr date mktemp; do command -v "$c" >/dev/null || die "Requisito em falta: $c"; done
 WORK=$(mktemp -d) || die 'Nao foi possivel criar temporarios'
 cleanup() {
+ # Bash 3.2 may execute inherited EXIT traps inside failed pipeline subshells.
+ # Only the owning shell may remove shared temporary data or stop its workers.
+ [ "${BASH_SUBSHELL:-0}" -eq 0 ] || return
  local p
  for p in $(jobs -pr); do kill "$p" 2>/dev/null || :; done
  [ -z "$WORK" ] || rm -rf -- "$WORK"
