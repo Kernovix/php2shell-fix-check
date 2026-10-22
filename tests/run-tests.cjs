@@ -24,6 +24,7 @@ function csv(text){
 const listen=server=>new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>resolve(server.address().port))});
 const servers=[],sni=[],requests=[];
 function handler(req,res){
+  res.setHeader('Server','nginx/1.26.2');
   const name=req.headers.host.split(':')[0];requests.push(name);
   if(name==='slow.test'){return;}
   if(name==='redirect.test'){res.writeHead(302,{Location:'https://user:DO_NOT_LEAK@offscope.invalid/login?token=DO_NOT_LEAK#fragment'});return res.end();}
@@ -100,6 +101,7 @@ async function simulated(engine,observations,evidence=[]){
       if(find('plain')?.DiscoveryCode!=='PHP_NOT_IDENTIFIED')console.error(batch.rows.map(r=>({target:r.Target,discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error']})));
       check(find('plain')?.DiscoveryCode==='PHP_NOT_IDENTIFIED','HTTP without PHP distinguished');
       check(find('plain')?.VulnerabilityCode==='INCONCLUSIVE','no PHP does not imply safety');
+      check(find('plain')?.Evidence?.includes('ServerProduct=nginx/1.26.2'),'web-server product retained without raw header disclosure');
       check(find('old')?.VulnerabilityCode==='POTENTIALLY_VULNERABLE','old banner conservative');
       check(find('fixed')?.VulnerabilityCode==='INCONCLUSIVE','patched banner not certified');
       check(find('hint')?.DiscoveryCode==='PHP_NO_VERSION','PHP session/header without version');

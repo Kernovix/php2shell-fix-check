@@ -508,7 +508,7 @@ sanitize_error() {
  clean "$1" | sed -E 's#(https?://)[^ /@]+@#\1[redacted]@#g; s#(https?://[^? ]+)\?[^ ]*#\1?[redacted]#g; s/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*[:=].*/\1=[redacted]/g; s/([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[=:][[:space:]]*[^ ;]*/\1=[redacted]/g'
 }
 scan_host() {
- local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp connect_time tcp_connected client_failure=0
+ local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner server_product detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp connect_time tcp_connected client_failure=0
  case "$target" in *=*) host=${target%%=*};connect=${target#*=};; esac
  : > "$file"
  for p in ${PORTS//,/ }; do
@@ -517,10 +517,14 @@ scan_host() {
   [ "$INSECURE" -eq 0 ] || extra=(-k)
   [ "$host" = "$connect" ] || extra+=(--resolve "$host:$p:$connect")
   # A capped combined stream avoids unbounded temporary headers or bodies.
-  curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
+  {
+   curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
    --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
-   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err" | head -c 98304 > "$f"
-  rc=${PIPESTATUS[0]}
+   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err"
+   printf '%s\n' "$?" > "$WORK/curl-$index.status"
+  } | head -c 98304 > "$f"
+  # Explicit status transport also works with older Bash background pipelines.
+  rc=125;if [ -s "$WORK/curl-$index.status" ];then IFS= read -r rc < "$WORK/curl-$index.status";fi
   http=$(awk '/^HTTP\/[0-9.]+ [0-9]+/{code=$2}END{if(code+0>=200)print code}' "$f")
   address=-;connect_time=0
   if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ];then
@@ -553,6 +557,7 @@ scan_host() {
   # Only the final response header block is eligible for version evidence.
   awk '/^HTTP\/[0-9.]+ /{headers="";active=1;next} active{if($0~/^\r?$/){active=0;next}headers=headers $0 "\n"}END{printf "%s",headers}' "$f" > "$WORK/headers-$index"
   banner=$(awk '{s=tolower($0);if(s~/^(server|x-powered-by):/)print}' "$WORK/headers-$index" | tr '\r\n' ' ' | head -c 1500)
+  server_product=$(printf '%s' "$banner" | grep -Eio '(apache|nginx|microsoft-iis|openresty|litespeed|caddy)(/[0-9][A-Za-z0-9._+-]*)?' | head -n 1)
   ver=$(printf '%s' "$banner" | sed -nE 's/.*[Pp][Hh][Pp]\/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r]*).*/\1/p')
   # Header cookie values never enter the fingerprint/report; names are enough.
   awk 'BEGIN{active=1}/^HTTP\/[0-9.]+ /{active=1;next}active&&/^\r?$/{active=0;next}!active{print}' "$f" | head -c 65536 > "$fp"
@@ -579,7 +584,7 @@ scan_host() {
   redirect=-
   case "$http" in 3??) redirect=$(awk 'tolower($0)~/^location:/{sub(/^[^:]*:[ ]*/,"");sub(/\r$/,"");print;exit}' "$WORK/headers-$index" | sed -E 's#[?#].*$##;s#(https?://)[^/@]+@#\1#g');;esac
   confidence=LOW;[ -z "$ver" ] || confidence=MEDIUM;[ "$tls" != DISABLED ] || confidence=LOW
-  detail="TCP open; HTTP=${http:--}; curl=$rc; peer=${address:--}; connect=${connect_time:-unknown}; bounded GET /; no redirects"
+  detail="TCP open; HTTP=${http:--}; ServerProduct=${server_product:-not advertised}; curl=$rc; peer=${address:--}; connect=${connect_time:-unknown}; bounded GET /; no redirects"
   [ "$tls" != DISABLED ] || detail="$detail; TLS validation explicitly disabled; no trust assurance"
   svc=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
   emit "$target" "$host" - "$svc:$p" "web:$p" "$app" "${ver:--}" - SIM "$detail" "${address:--}" "$discovery" "${http:--}" "$tls" "$error_code" "$error_detail" "${redirect:--}" "$confidence" >> "$file"

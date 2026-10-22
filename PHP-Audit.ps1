@@ -533,6 +533,7 @@ $worker = {
         if($reply.Headers.ContainsKey('X-Powered-By')){$powered=$reply.Headers['X-Powered-By']}
         if($reply.Headers.ContainsKey('Set-Cookie')){$cookie=$reply.Headers['Set-Cookie']}
         if($reply.Headers.ContainsKey('Location')){$location=$reply.Headers['Location']}
+        $serverProduct='not advertised';if($server -match '(?i)\b(?:Apache|nginx|Microsoft-IIS|OpenResty|LiteSpeed|Caddy)(?:/[0-9][A-Za-z0-9._+-]*)?'){$serverProduct=$Matches[0]}
         if("$server $powered" -match '(?i)PHP/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r\n]*)'){$version=$Matches[1]}
         $cookieNames=@([regex]::Matches($cookie,'(?:^|[,;]\s*)([A-Za-z0-9_]+)=') | ForEach-Object {$_.Groups[1].Value}) -join ' '
         $fingerprint="$($reply.Body) $server $powered $cookieNames"
@@ -542,7 +543,7 @@ $worker = {
         if("$server $powered $cookieNames" -match '(?i)\bPHP\b|PHPSESSID'){$phpHint=$true}
         $discovery='PHP_NOT_IDENTIFIED'; if($phpHint){$discovery='PHP_NO_VERSION'}; if($version -ne '-'){$discovery='PHP_VERSION_IDENTIFIED'}
         if(-not $reply.Status){$discovery='CONNECTION_ERROR'}
-        $o=Row "${scheme}:$port" "web:$port" $apps $version '-' SIM "TCP open; HTTP=$($reply.Status); bounded GET / (64 KiB); no redirects; bodyTruncated=$($reply.BodyTruncated)"
+        $o=Row "${scheme}:$port" "web:$port" $apps $version '-' SIM "TCP open; HTTP=$($reply.Status); ServerProduct=$serverProduct; bounded GET / (64 KiB); no redirects; bodyTruncated=$($reply.BodyTruncated)"
         $o.Address=$reply.Address;$o.DiscoveryCode=$discovery;$o.HTTPStatus=if($reply.Status){[string]$reply.Status}else{''};$o.TLSValidation=$reply.Tls
         $o.ErrorCode=$reply.ErrorCode;$o.ErrorDetail=Safe $reply.ErrorDetail
         if($reply.Status -ge 300 -and $reply.Status -lt 400 -and $location){
