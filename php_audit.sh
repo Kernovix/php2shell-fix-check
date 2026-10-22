@@ -268,7 +268,6 @@ fi
 for c in awk sed sort head tr date mktemp; do command -v "$c" >/dev/null || die "Requisito em falta: $c"; done
 WORK=$(mktemp -d) || die 'Nao foi possivel criar temporarios'
 cleanup() {
- # Bash 3.2 may execute inherited EXIT traps inside failed pipeline subshells.
  # Only the owning shell may remove shared temporary data or stop its workers.
  [ "${BASH_SUBSHELL:-0}" -eq 0 ] || return
  local p
@@ -521,26 +520,14 @@ scan_host() {
   [ "$INSECURE" -eq 0 ] || extra=(-k)
   [ "$host" = "$connect" ] || extra+=(--resolve "$host:$p:$connect")
   # A capped combined stream avoids unbounded temporary headers or bodies.
-  if [ "${BASH_VERSINFO[0]}" -lt 4 ];then
-   # A regular file avoids legacy background-pipeline races. POSIX -f units
-   # are 512 bytes: the child may write at most 96 KiB, including headers.
-   (
-    set -o posix
-    ulimit -f 192 || exit 125
-    curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
-     --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
-     --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" > "$f" 2> "$WORK/curl-$index.err"
-   )
-   rc=$?
-  else
-   {
-    curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
+  {
+    # The conditional expansion is required for empty arrays under Bash 3.2 -u.
+    curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" ${extra[@]+"${extra[@]}"} \
      --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
      --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err"
     printf '%s\n' "$?" > "$WORK/curl-$index.status"
-   } | head -c 98304 > "$f"
-   rc=125;if [ -s "$WORK/curl-$index.status" ];then IFS= read -r rc < "$WORK/curl-$index.status";fi
-  fi
+  } | head -c 98304 > "$f"
+  rc=125;if [ -s "$WORK/curl-$index.status" ];then IFS= read -r rc < "$WORK/curl-$index.status";fi
   http=$(awk '/^HTTP\/[0-9.]+ [0-9]+/{code=$2}END{if(code+0>=200)print code}' "$f")
   address=-;connect_time=0
   if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ];then
@@ -614,7 +601,7 @@ scan_host() {
  fi
  if [ -n "$SSH_USER" ]; then
   local key=();[ -z "$SSH_KEY" ] || key=(-i "$SSH_KEY")
-  timeout "$REMOTE_TIMEOUT" ssh -F /dev/null -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ClearAllForwardings=yes -o ForwardAgent=no -o ForwardX11=no -o PermitLocalCommand=no -o ConnectTimeout="$TIMEOUT" -o ConnectionAttempts=1 -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -p "$SSH_PORT" "${key[@]}" "$SSH_USER@$host" 'sh -s' < "$WORK/collector.sh" > "$WORK/remote-$index" 2> "$WORK/ssh-$index.err"
+  timeout "$REMOTE_TIMEOUT" ssh -F /dev/null -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ClearAllForwardings=yes -o ForwardAgent=no -o ForwardX11=no -o PermitLocalCommand=no -o ConnectTimeout="$TIMEOUT" -o ConnectionAttempts=1 -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -p "$SSH_PORT" ${key[@]+"${key[@]}"} "$SSH_USER@$host" 'sh -s' < "$WORK/collector.sh" > "$WORK/remote-$index" 2> "$WORK/ssh-$index.err"
   rc=$?;local remote_host remote_os
   remote_host=$(awk -F '\t' '$1=="META"&&$2=="HOST"{print $5;exit}' "$WORK/remote-$index");remote_os=$(awk -F '\t' '$1=="META"&&$2=="OS"{print $5;exit}' "$WORK/remote-$index")
   while IFS="$TAB" read -r svc rid ver pkg detail; do

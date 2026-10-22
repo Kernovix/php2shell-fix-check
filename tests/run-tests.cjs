@@ -51,7 +51,7 @@ function audit(engine,targets,ports,extra=[],language='en'){
   // PowerShell -File does not bind a comma string to int[]; use a single port per call.
   assert.equal(ports.length,1);
   return command(engine.exe,args).then(output=>{
-    if(/fork:|Resource temporarily unavailable|Too many open files|command not found|No such file or directory/.test(output))console.error(output);
+    if(/fork:|Resource temporarily unavailable|Too many open files|command not found|No such file or directory|unbound variable/.test(output))throw Error('Unhandled script diagnostic:\n'+output);
     const dir=fs.readdirSync(out).find(n=>fs.statSync(path.join(out,n)).isDirectory());assert.ok(dir,'No report output');
     const csvText=fs.readFileSync(path.join(out,dir,'report.csv'),'utf8'),html=fs.readFileSync(path.join(out,dir,'report.html'),'utf8');
     check(!csvText.includes("\"'-\""),'unknown CSV markers are blank');check(!/COOKIE_VALUE_DO_NOT_LEAK|DO_NOT_LEAK/.test(csvText+html),'no cookie/query secrets in reports');
@@ -137,6 +137,12 @@ async function simulated(engine,observations,evidence=[]){
       const dns=await audit(engine,'localhost',[httpPort]);
       if(!(dns.rows[0]?.HTTP==='200'&&dns.rows[0]?.IP==='127.0.0.1'))console.error(dns.rows.map(r=>({target:r.Target,IP:r.IP,HTTP:r.HTTP,discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error'],evidence:r.Evidence})));
       check(dns.rows[0]?.HTTP==='200'&&dns.rows[0]?.IP==='127.0.0.1','DNS hostname resolution');
+      const plainIp=await audit(engine,'127.0.0.1',[httpPort]);
+      check(plainIp.rows[0]?.HTTP==='200'&&plainIp.rows[0]?.DiscoveryCode==='PHP_NOT_IDENTIFIED','plain IPv4 with no optional arguments');
+      if(engine.id==='bash'){
+        const sshDenied=await audit(engine,'127.0.0.1',[httpPort],['--ssh-user','auditor','--ssh-port',String(closedPort),'--remote-timeout','5']);
+        check(sshDenied.rows.some(r=>r.Service==='SSH'&&r['Error code']==='SSH_FAILED'),'SSH failure without explicit key is diagnosed, not an empty-array abort');
+      }
       const range=await audit(engine,'127.0.0.1-2,127.0.0.1',[closedPort]);
       check(range.rows.length===2,'IP range and deduplication preserved');
       const cidr=await audit(engine,'127.0.0.0/30',[closedPort],[],'pt');
