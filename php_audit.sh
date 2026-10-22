@@ -535,9 +535,16 @@ scan_host() {
   case "$rc" in 6|7|28) :;;*) [ -z "$address" ] || [ "$address" = - ] || tcp_connected=1;;esac
   case "$rc" in 35|51|60) tcp_connected=1;;esac
   if [ "$tcp_connected" -eq 0 ];then
+   case "$rc" in 6|7|28) :;;*)
+    # Fallback only for an explicit IPv4 and an ambiguous client/protocol failure.
+    # It never performs a DNS lookup that could accidentally prefer IPv6.
+    if [[ "$connect" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && timeout "$TIMEOUT" bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$connect" "$p" >/dev/null 2>&1;then tcp_connected=1;fi;;
+   esac
+  fi
+  if [ "$tcp_connected" -eq 0 ];then
    error_code=TCP_FAILED;case "$rc" in 6) error_code=DNS_FAILURE;;28) error_code=TCP_TIMEOUT;;77) error_code=TLS_CA_INVALID;;esac
    grep -qi 'refused' "$WORK/curl-$index.err" && error_code=TCP_REFUSED
-   failures="$failures${failures:+ | }$p: $error_code; $(sanitize_error "$(head -c 600 "$WORK/curl-$index.err")")"
+   failures="$failures${failures:+ | }$p: $error_code; curl=$rc; $(sanitize_error "$(head -c 600 "$WORK/curl-$index.err")")"
    continue
   fi
   any=1
@@ -564,6 +571,8 @@ scan_host() {
    28) error_code=REQUEST_TIMEOUT;; 35) error_code=TLS_HANDSHAKE_FAILED;;51|60) error_code=TLS_CERTIFICATE_INVALID;;77) error_code=TLS_CA_INVALID;;6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;18) error_code=BODY_INCOMPLETE;;52) error_code=HTTP_EMPTY_RESPONSE;;56) error_code=HTTP_READ_FAILED;;*) error_code="CURL_$rc";;
   esac
   [ "$error_code" = - ] || error_detail=$(sanitize_error "$(head -c 2000 "$WORK/curl-$index.err")")
+  if [ "$discovery" = CONNECTION_ERROR ] && [ "$error_code" = - ];then error_code=HTTP_PROTOCOL_INVALID;error_detail='TCP connected but no valid HTTP status line was received';fi
+  [ "$error_code" = - ] || [ -n "$error_detail" ] || error_detail="curl exit=$rc; no diagnostic text returned"
   tls=NOT_APPLICABLE
   if [ "$scheme" = https ]; then tls=UNVERIFIED;[ -z "$http" ] || tls=VALIDATED;case "$error_code" in TLS_CERTIFICATE*|TLS_CA*) tls=FAILED;;esac;[ "$INSECURE" -eq 0 ] || tls=DISABLED;fi
   redirect=-
@@ -755,7 +764,7 @@ table() {
 {
  printf '<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>%s</title>' "$LANGUAGE" "$(t title)"
  cat <<'STYLE'
-<style>body{font:14px system-ui,sans-serif;color:#183047;background:#f3f6fa;margin:0;padding:24px}main{max-width:1500px;margin:auto}p{line-height:1.6}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}.stats div{padding:14px;background:white;border:1px solid #d6e0e9;border-radius:6px}.stats strong{font-size:24px;display:block}.table{overflow:auto;background:white}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid #dde5ee}th{background:#143a5e;color:white}td{overflow-wrap:anywhere}td details{font-size:12px;max-width:390px}summary{cursor:pointer;color:#385a75}.no-response{margin-top:25px}footer{font-size:12px;margin-top:25px}@media print{body{padding:0}.table{overflow:visible}table{font-size:10px}}</style></head><body><main>
+<style>body{font:14px system-ui,sans-serif;color:#183047;background:#f3f6fa;margin:0;padding:24px}main{max-width:1500px;margin:auto}p{line-height:1.6}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}.stats div{padding:14px;background:white;border:1px solid #d6e0e9;border-radius:6px}.stats strong{font-size:24px;display:block}.table{overflow:auto;background:white}table{width:100%;min-width:1050px;border-collapse:collapse}td:first-child{min-width:120px}td:nth-child(2),td:nth-child(4){white-space:nowrap}td:nth-child(3){min-width:165px}td:nth-child(5){min-width:145px}td:last-child{min-width:260px}th,td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid #dde5ee}th{background:#143a5e;color:white}td{overflow-wrap:anywhere}td details{font-size:12px;max-width:390px}summary{cursor:pointer;color:#385a75}.no-response{margin-top:25px}footer{font-size:12px;margin-top:25px}@media print{body{padding:0}.table{overflow:visible}table{font-size:10px;min-width:0}td{min-width:0!important}}</style></head><body><main>
 STYLE
  printf '<h1>%s</h1><p>%s · %s UTC</p>' "$(t title)" "$CVES" "$(date -u +%FT%T)"
  [ -z "$SIMULATE" ] || printf '<p><strong>%s</strong></p>' "$(t simulated)"
