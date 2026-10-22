@@ -1,0 +1,23 @@
+# Customer data and generated reports / Dados de clientes e relatórios
+reports/
+*.csv
+*.html
+*.zip
+*.log
+*.tmp
+# Local input and secrets / Alvos locais e segredos
+*.tsv
+targets*.txt
+alvos*.txt
+.env
+.env.*
+.ssh/
+*.pem
+*.key
+*.pfx
+*.p12
+*.kdbx
+credentials*
+secrets*
+.DS_Store
+Thumbs.db
