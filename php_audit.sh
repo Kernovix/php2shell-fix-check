@@ -10,7 +10,7 @@ CVES='CVE-2026-109618; CVE-2026-109619'
 PORTS=80,443,8080,8443 TLS_PORTS=443,8443 CONCURRENCY=8 TIMEOUT=3 REMOTE_TIMEOUT=45 MAX_HOSTS=4096
 TARGETS='' TARGET_FILE='' PUBLIC_TARGETS='' SSH_USER='' SSH_KEY='' SSH_PORT=22
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-LANGUAGE='' OUT="$SCRIPT_DIR/reports" EVIDENCE_FILE='' SIMULATE='' SELF_TEST=0 INSECURE=0
+LANGUAGE='' OUT="$SCRIPT_DIR/reports" EVIDENCE_FILE='' SIMULATE='' SELF_TEST=0 INSECURE=0 LOCAL_INVENTORY=0
 WORK='' RUN='' TODAY=$(date -u +%F)
 die() { printf 'ERRO: %s\n' "$*" >&2; exit 2; }
 usage() {
@@ -20,7 +20,8 @@ bash php_audit.sh                         # asks for targets and report language
 bash php_audit.sh '192.168.1.0/24' pt      # Portuguese report
 bash php_audit.sh '192.168.1.10-30' en     # English report
 Optional: --ports 80,443,8080,8443 --tls-ports 443,8443 --concurrency 8
-          --ssh-user auditor --ssh-key FILE --out DIR --self-test
+          --ssh-user auditor --ssh-key FILE --local-inventory --out DIR --self-test
+DNS/SNI: site.example or site.example=192.0.2.10 (mapping applies to web only)
 Use only authorized targets / Usar apenas alvos autorizados.
 HELP
 }
@@ -29,6 +30,7 @@ while [ "$#" -gt 0 ]; do
  case "$1" in
  --help|-h) usage; exit 0;;
  --self-test) SELF_TEST=1; shift; continue;;
+ --local-inventory) LOCAL_INVENTORY=1; shift; continue;;
  --insecure-tls) INSECURE=1; shift; continue;;
  --language|--lang|--targets|--targets-file|--ports|--tls-ports|--concurrency|--timeout|--remote-timeout|--max-hosts|--ssh-user|--ssh-key|--ssh-port|--public-targets|--evidence|--out|--simulate) need_arg "$@";;
  pt|en) LANGUAGE=$1; shift; continue;;
@@ -43,8 +45,8 @@ while [ "$#" -gt 0 ]; do
  esac
  shift 2
 done
-if [ -z "$TARGETS$TARGET_FILE$SIMULATE" ] && [ "$SELF_TEST" -eq 0 ] && [ -t 0 ]; then
- read -r -p 'IPs / Rede / Network (ex.: 192.168.1.0/24): ' TARGETS || die 'Sem escopo indicado'
+if [ -z "$TARGETS$TARGET_FILE$SIMULATE" ] && [ "$SELF_TEST" -eq 0 ] && [ "$LOCAL_INVENTORY" -eq 0 ] && [ -t 0 ]; then
+ read -r -p 'IPs / DNS / Rede / Network (ex.: 192.168.1.0/24 ou/or app.example.com): ' TARGETS || die 'Sem escopo indicado'
 fi
 if [ -z "$LANGUAGE" ] && [ "$SELF_TEST" -eq 0 ] && [ -z "$SIMULATE" ] && [ -t 0 ]; then
  read -r -p 'Idioma do relatório / Report language [pt/en] (pt): ' LANGUAGE || exit 2
@@ -99,8 +101,8 @@ t() {
  en:evidence) printf '%s' 'Evidence';;
  pt:recommendation) printf '%s' 'Recomendação';;
  en:recommendation) printf '%s' 'Recommendation';;
- pt:vulnerable) printf '%s' 'VULNERÁVEL';;
- en:vulnerable) printf '%s' 'VULNERABLE';;
+ pt:vulnerable) printf '%s' 'VULNERÁVEL CONFIRMADO';;
+ en:vulnerable) printf '%s' 'VULNERABLE (CONFIRMED)';;
  pt:fixed) printf '%s' 'CORRIGIDO';;
  en:fixed) printf '%s' 'FIXED';;
  pt:potential) printf '%s' 'POTENCIALMENTE VULNERÁVEL';;
@@ -153,6 +155,96 @@ t() {
  en:scanning) printf '%s' 'Checking';;
  pt:tests) printf '%s' 'Testes internos aprovados';;
  en:tests) printf '%s' 'Internal tests passed';;
+ pt:target) printf '%s' 'Alvo';;
+ en:target) printf '%s' 'Target';;
+ pt:address) printf '%s' 'IP';;
+ en:address) printf '%s' 'IP';;
+ pt:discovery) printf '%s' 'Descoberta';;
+ en:discovery) printf '%s' 'Discovery';;
+ pt:vulnerability) printf '%s' 'Vulnerabilidade';;
+ en:vulnerability) printf '%s' 'Vulnerability';;
+ pt:confidence) printf '%s' 'Confiança na evidência PHP';;
+ en:confidence) printf '%s' 'Confidence in PHP evidence';;
+ pt:group) printf '%s' 'Secção';;
+ en:group) printf '%s' 'Section';;
+ pt:error) printf '%s' 'Erro técnico';;
+ en:error) printf '%s' 'Technical error';;
+ pt:errorCode) printf '%s' 'Código de erro';;
+ en:errorCode) printf '%s' 'Error code';;
+ pt:http) printf '%s' 'HTTP';;
+ en:http) printf '%s' 'HTTP';;
+ pt:tls) printf '%s' 'Validação TLS';;
+ en:tls) printf '%s' 'TLS validation';;
+ pt:redirect) printf '%s' 'Redirecionamento (não seguido)';;
+ en:redirect) printf '%s' 'Redirect (not followed)';;
+ pt:webGroup) printf '%s' 'Serviços web e candidatos';;
+ en:webGroup) printf '%s' 'Web services and candidates';;
+ pt:inventoryGroup) printf '%s' 'Inventário local/remoto';;
+ en:inventoryGroup) printf '%s' 'Local/remote inventory';;
+ pt:noWebGroup) printf '%s' 'Alvos sem serviço web detetado';;
+ en:noWebGroup) printf '%s' 'Targets without a detected web service';;
+ pt:errorsGroup) printf '%s' 'Erros de ligação/recolha';;
+ en:errorsGroup) printf '%s' 'Connection/collection errors';;
+ pt:targetCount) printf '%s' 'Alvos analisados';;
+ en:targetCount) printf '%s' 'Targets checked';;
+ pt:tcpCount) printf '%s' 'Portas TCP abertas candidatas';;
+ en:tcpCount) printf '%s' 'Candidate open TCP ports';;
+ pt:webCount) printf '%s' 'Respostas HTTP/HTTPS';;
+ en:webCount) printf '%s' 'HTTP/HTTPS responses';;
+ pt:webHosts) printf '%s' 'Alvos com resposta web';;
+ en:webHosts) printf '%s' 'Targets with web responses';;
+ pt:noWebCount) printf '%s' 'Alvos sem porta web aberta detetada';;
+ en:noWebCount) printf '%s' 'Targets without a detected open web port';;
+ pt:phpCount) printf '%s' 'Alvos com indícios PHP';;
+ en:phpCount) printf '%s' 'Targets with PHP evidence';;
+ pt:errorCount) printf '%s' 'Erros de ligação/recolha';;
+ en:errorCount) printf '%s' 'Connection/collection errors';;
+ pt:NO_WEB_SERVICE) printf '%s' 'SEM SERVIÇO WEB DETETADO';;
+ en:NO_WEB_SERVICE) printf '%s' 'NO WEB SERVICE DETECTED';;
+ pt:PHP_NOT_IDENTIFIED) printf '%s' 'PHP NÃO IDENTIFICADO';;
+ en:PHP_NOT_IDENTIFIED) printf '%s' 'PHP NOT IDENTIFIED';;
+ pt:PHP_NO_VERSION) printf '%s' 'PHP IDENTIFICADO SEM VERSÃO (indício)';;
+ en:PHP_NO_VERSION) printf '%s' 'PHP IDENTIFIED WITHOUT VERSION (hint)';;
+ pt:PHP_VERSION_IDENTIFIED) printf '%s' 'VERSÃO PHP IDENTIFICADA';;
+ en:PHP_VERSION_IDENTIFIED) printf '%s' 'PHP VERSION IDENTIFIED';;
+ pt:CONNECTION_ERROR) printf '%s' 'ERRO DE LIGAÇÃO';;
+ en:CONNECTION_ERROR) printf '%s' 'CONNECTION ERROR';;
+ pt:INVENTORY_PHP) printf '%s' 'PHP NO INVENTÁRIO';;
+ en:INVENTORY_PHP) printf '%s' 'PHP IN INVENTORY';;
+ pt:INVENTORY_OTHER) printf '%s' 'OUTRO COMPONENTE NO INVENTÁRIO';;
+ en:INVENTORY_OTHER) printf '%s' 'OTHER INVENTORY COMPONENT';;
+ pt:INVENTORY_COMPLETE) printf '%s' 'RECOLHA DE INVENTÁRIO';;
+ en:INVENTORY_COMPLETE) printf '%s' 'INVENTORY COLLECTION';;
+ pt:candidateHosts) printf '%s' 'IPs com portas candidatas';;
+ en:candidateHosts) printf '%s' 'IPs with candidate ports';;
+ pt:remoteAction) printf '%s' 'Confirmar credenciais, permissões e a configuração SSH/WinRM existente; consultar o erro técnico.';;
+ en:remoteAction) printf '%s' 'Check credentials, permissions and existing SSH/WinRM configuration; review the technical error.';;
+ pt:INVENTORY_ERROR) printf '%s' 'ERRO/PERMISSÕES NO INVENTÁRIO';;
+ en:INVENTORY_ERROR) printf '%s' 'INVENTORY ERROR/PERMISSIONS';;
+ pt:confidence_LOW) printf '%s' 'BAIXA';;
+ en:confidence_LOW) printf '%s' 'LOW';;
+ pt:confidence_MEDIUM) printf '%s' 'MÉDIA';;
+ en:confidence_MEDIUM) printf '%s' 'MEDIUM';;
+ pt:confidence_HIGH) printf '%s' 'ALTA';;
+ en:confidence_HIGH) printf '%s' 'HIGH';;
+ pt:noWebAction) printf '%s' 'Confirmar rede, DNS, firewall e portas autorizadas. Não foi excluída a existência de PHP.';;
+ en:noWebAction) printf '%s' 'Check network, DNS, firewall and authorized ports. PHP has not been ruled out.';;
+ pt:noPhpAction) printf '%s' 'O serviço respondeu sem indícios PHP. Confirmar o site virtual/SNI e inventariar o servidor se autorizado.';;
+ en:noPhpAction) printf '%s' 'The service responded without PHP evidence. Check the virtual host/SNI and inventory the server if authorized.';;
+ pt:noVersionAction) printf '%s' 'Existem indícios PHP sem versão. Recolher inventário local ou por SSH/WinRM autorizado e confirmar o runtime web.';;
+ en:noVersionAction) printf '%s' 'PHP hints have no version. Collect local or authorized SSH/WinRM inventory and confirm the web runtime.';;
+ pt:tlsAction) printf '%s' 'Corrigir a cadeia de confiança, validade e nome do certificado; usar o hostname/SNI correto. A validação TLS mantém-se ativa.';;
+ en:tlsAction) printf '%s' 'Check certificate trust chain, validity and hostname; use the correct DNS/SNI name. TLS validation remains enabled.';;
+ pt:connectAction) printf '%s' 'Consultar o erro técnico; confirmar DNS, rota, firewall, protocolo e tempo limite. Repetir apenas no âmbito autorizado.';;
+ en:connectAction) printf '%s' 'Review the technical error; check DNS, routing, firewall, protocol and timeout. Retry only within the authorized scope.';;
+ pt:redirectAction) printf '%s' 'O redirecionamento não foi seguido. Autorizar e indicar explicitamente o destino correto, incluindo o hostname/SNI.';;
+ en:redirectAction) printf '%s' 'The redirect was not followed. Authorize and explicitly supply the correct destination, including its DNS/SNI name.';;
+ pt:inventoryAction) printf '%s' 'Confirmar permissões e associar processos, pacotes e executáveis ao runtime web; versões em disco/CLI não certificam o site.';;
+ en:inventoryAction) printf '%s' 'Check permissions and link processes, packages and executables to the web runtime; disk/CLI versions do not certify the site.';;
+ pt:summaryNote) printf '%s' 'Portas TCP abertas são candidatas: só uma resposta HTTP confirma um serviço web. Confiança refere-se à evidência PHP, não à segurança do equipamento. INCONCLUSIVO nunca significa seguro.';;
+ en:summaryNote) printf '%s' 'Open TCP ports are candidates: only an HTTP response confirms a web service. Confidence describes PHP evidence, not host safety. INCONCLUSIVE never means safe.';;
+ pt:limitText) printf '%s' 'Só os alvos e portas autorizados são analisados. DNS/SNI identifica o site pedido; não enumera todos os sites virtuais nem backends. Redirecionamentos não são seguidos. Inventário depende das permissões e não entra nos contentores. Exposição pública é declarada pelo técnico. Sem exploits ou alterações nos alvos.';;
+ en:limitText) printf '%s' 'Only authorized targets and ports are checked. DNS/SNI selects the requested site; it does not enumerate every virtual host or backend. Redirects are not followed. Inventory depends on permissions and does not enter containers. Public exposure is technician-declared. No exploits or target changes.';;
  *) printf '%s' "$1";;
  esac
 }
@@ -186,22 +278,25 @@ TAB=$(printf '\t')
 expand_scope() {
  awk -v limit="$MAX_HOSTS" '
  function fail(s){print "Invalid scope / Alvos invalidos: " s > "/dev/stderr";bad=1;exit 2}
- function ipnum(s,parts,n,j,v){n=split(s,parts,".");if(n!=4)fail(s);v=0;for(j=1;j<=4;j++){if(parts[j]!~/^[0-9]+$/||length(parts[j])>3||parts[j]+0>255)fail(s);v=v*256+parts[j]}return v}
- function add(v){if(!seen[v]++){if(++count>limit)fail("too many IPs / demasiados IPs");printf "%d.%d.%d.%d\n",int(v/16777216),int(v/65536)%256,int(v/256)%256,v%256}}
- {sub(/^\357\273\277/, "");sub(/\r$/, "");sub(/#.*/, "");gsub(/,/, " ");for(t=1;t<=NF;t++){
+ function ipnum(s,parts,n,j,v){n=split(s,parts,".");if(n!=4)fail(s);v=0;for(j=1;j<=4;j++){if(parts[j]!~/^[0-9]+$/||length(parts[j])>3||parts[j]~/^0[0-9]/||parts[j]+0>255)fail(s);v=v*256+parts[j]}return v}
+ function dns(s,p,n,j){if(length(s)>253||s~/^[0-9.]+$/)return 0;n=split(s,p,".");for(j=1;j<=n;j++)if(length(p[j])<1||length(p[j])>63||p[j]!~/^[A-Za-z0-9][A-Za-z0-9-]*$/||p[j]~/-$/)return 0;return 1}
+ function output(s){s=tolower(s);if(!seen[s]++){if(++count>limit)fail("too many targets");print s}}
+ function add(v){output(sprintf("%d.%d.%d.%d",int(v/16777216),int(v/65536)%256,int(v/256)%256,v%256))}
+ {sub(/^\357\273\277/,"");sub(/\r$/,"");sub(/#.*/,"");gsub(/,/," ");for(t=1;t<=NF;t++){
   token=$t
-  if(index(token,"-")){
-   if(split(token,r,"-")!=2)fail(token);lo=ipnum(r[1]);end=r[2]
-   if(end~/^[0-9]+$/){if(length(end)>3||end+0>255)fail(token);hi=int(lo/256)*256+end}else hi=ipnum(end)
+  if(index(token,"=")){if(split(token,m,"=")!=2||!dns(m[1]))fail(token);ipnum(m[2]);output(token)}
+  else if(token~/^[0-9.]+-[0-9.]+$/){
+   if(split(token,r,"-")!=2)fail(token);lo=ipnum(r[1]);last=r[2]
+   if(last~/^[0-9]+$/){if(length(last)>3||last+0>255)fail(token);hi=int(lo/256)*256+last}else hi=ipnum(last)
    if(hi<lo||hi-lo+1>limit)fail(token);for(x=lo;x<=hi;x++)add(x)
-  }else{
+  }else if(index(token,"/")||token~/^[0-9.]+$/){
    n=split(token,a,"/");if(n>2)fail(token);v=ipnum(a[1]);b=32
    if(n==2){if(a[2]!~/^[0-9]+$/||length(a[2])>2||a[2]+0>32)fail(token);b=a[2]+0}
-   size=2^(32-b);if(size>limit)fail("CIDR exceeds / excede max-hosts");base=int(v/size)*size
-   lo=base;hi=base+size-1;if(b<31){lo++;hi--}for(x=lo;x<=hi;x++)add(x)
-  }
+   size=2^(32-b);if(size>limit)fail("CIDR exceeds max-hosts");base=int(v/size)*size;lo=base;hi=base+size-1;if(b<31){lo++;hi--}for(x=lo;x<=hi;x++)add(x)
+  }else{if(!dns(token))fail(token);output(token)}
  }}END{if(bad)exit 2}'
 }
+
 # Strict, plain TSV protocol: ten columns, '-' means unknown. No raw HTTP/config logs.
 clean() {
  local v=${1:0:3000}
@@ -210,7 +305,12 @@ clean() {
 }
 emit() {
  local sep='' v
- for v in "$@"; do printf '%s%s' "$sep" "$(clean "${v:--}")"; sep="$TAB"; done
+ # Inline sanitation avoids a subshell for every inventory field.
+ for v in "$@";do
+  v=${v:--};v=${v:0:3000}
+  while [[ "$v" =~ [[:cntrl:]] ]];do v=${v//"${BASH_REMATCH[0]}"/ };done
+  printf '%s%s' "$sep" "$v";sep="$TAB"
+ done
  printf '\n'
 }
 version_state() {
@@ -231,7 +331,7 @@ classify() {
   if [ "$a" = FIXED ] && [ "$b" = FIXED ]; then printf CORRIGIDO; return; fi
  fi
  state=$(version_state "$version")
- if [ "$service" != CLI ] && { [ "$state" = BELOW ] || [ "$state" = LEGACY ]; }; then printf 'POTENCIALMENTE VULNERAVEL'; else printf INCONCLUSIVO; fi
+ if [[ ! "$service" =~ ^(CLI|PHP-BINARY|PACKAGE|Docker|Podman|SERVICE|COLLECTION|LOCAL|WinRM|SSH|DISCOVERY)$ ]] && { [ "$state" = BELOW ] || [ "$state" = LEGACY ]; }; then printf 'POTENCIALMENTE VULNERAVEL'; else printf INCONCLUSIVO; fi
 }
 self_tests() {
  local v expected got count=0
@@ -291,12 +391,12 @@ if [ -n "$SIMULATE" ]; then
  [ -r "$SIMULATE" ] || die 'Ficheiro de simulacao ilegivel'
  normalize_tsv "$SIMULATE" "$WORK/observations.tsv" || die 'Erro a ler simulacao'
 else
- [ -n "$TARGETS$TARGET_FILE" ] || die 'Indique --targets ou --targets-file (ou --self-test)'
+ [ -n "$TARGETS$TARGET_FILE" ] || [ "$LOCAL_INVENTORY" -eq 1 ] || die 'Indique --targets ou --targets-file (ou --self-test)'
  for c in curl timeout bash; do command -v "$c" >/dev/null || die "Requisito em falta: $c"; done
  [ -z "$SSH_USER" ] || command -v ssh >/dev/null || die 'ssh em falta'
  { printf '%s\n' "$TARGETS"; if [ -n "$TARGET_FILE" ]; then cat -- "$TARGET_FILE" || exit 2; fi; } > "$WORK/scope.input" || die 'Escopo ilegivel'
  expand_scope < "$WORK/scope.input" > "$WORK/targets" || die 'Escopo recusado'
- [ -s "$WORK/targets" ] || die 'Escopo vazio'
+ [ -s "$WORK/targets" ] || [ "$LOCAL_INVENTORY" -eq 1 ] || die 'Escopo vazio'
 fi
 printf '%s\n' "$PUBLIC_TARGETS" | expand_scope > "$WORK/public" || die 'Exposicao invalida'
 # Remote collector never reads application configs, env, command lines or secrets.
@@ -312,8 +412,9 @@ fi
 line META OS - - "$os"
 line META HOST - - "$(hostname 2>/dev/null | head -c 200)"
 # CLI is actual PHP_VERSION but NEVER used to certify a web runtime.
-for bin in php php5 php7.4 php8.0 php8.1 php8.2 php8.3 php8.4 php8.5; do
+for bin in php php5 php7.4 php8.0 php8.1 php8.2 php8.3 php8.4 php8.5 /usr/bin/php[0-9]* /usr/local/bin/php /opt/remi/php*/root/usr/bin/php /opt/plesk/php/*/bin/php; do
  if command -v "$bin" >/dev/null 2>&1; then
+  case "${bin##*/}" in php|php5|php[0-9].[0-9]|php[0-9][0-9]) :;;*) continue;;esac
   v=$("$bin" -n -r 'echo PHP_VERSION;' 2>/dev/null | head -c 100)
   line CLI "cli:$bin" "${v:--}" - 'PHP_VERSION via -n; sem ligacao ao servico web'
  fi
@@ -329,6 +430,15 @@ elif command -v rpm >/dev/null 2>&1; then
   grep -E '^(php|rh-php|ea-php)' | head -n 150 | while IFS= read -r pkg; do
    line PACKAGE "package:$pkg" - "$pkg" 'RPM instalado; fornecedor/stream e runtime carregado por confirmar'
   done
+fi
+# Read service names/states only, never ExecStart, environment or command arguments.
+if command -v systemctl >/dev/null 2>&1; then
+ systemctl list-units --all --type=service --no-pager --no-legend 2>/dev/null | grep -E 'php.*fpm|apache|httpd|nginx|docker' | head -n 80 | while read -r unit load active sub rest; do
+  line SERVICE "service:$unit" - - "Service=$unit; state=$active/$sub"
+ done
+fi
+if command -v apk >/dev/null 2>&1; then
+ apk info -v 2>/dev/null | grep -E '^php[0-9]*-' | head -n 150 | while IFS= read -r pkg; do line PACKAGE "package:$pkg" - "$pkg" 'Installed apk package; loaded web runtime unconfirmed'; done
 fi
 # ps comm only, never args (could contain credentials). No process restarts.
 ps -e -o pid= -o comm= 2>/dev/null | head -n 4096 | while read -r pid name rest; do
@@ -364,94 +474,138 @@ ps -e -o pid= -o comm= 2>/dev/null | head -n 4096 | while read -r pid name rest;
 done
 # Docker metadata only: no inspect Env, no exec/pull/start. Tags are not versions.
 if command -v docker >/dev/null 2>&1; then
- docker ps --format '{{.ID}}|{{.Image}}|{{.Ports}}' 2>/dev/null | head -n 100 | while IFS='|' read -r id image ports; do
+ socket=/var/run/docker.sock
+ [ ! -S "/run/user/$(id -u)/docker.sock" ] || socket="/run/user/$(id -u)/docker.sock"
+ if [ -S "$socket" ];then
+ docker -H "unix://$socket" ps --format '{{.ID}}|{{.Image}}|{{.Ports}}' 2>/dev/null | head -n 100 | while IFS='|' read -r id image ports; do
   line Docker "docker:$id" - - "Imagem=$image; portas=$ports; PHP interno e digest carregado por confirmar"
  done
+ else line COLLECTION docker - - 'Local Docker socket unavailable; remote contexts are not queried';fi
+fi
+if command -v podman >/dev/null 2>&1; then
+ podman --remote=false ps --format '{{.ID}}|{{.Image}}|{{.Ports}}' 2>/dev/null | head -n 100 | while IFS='|' read -r id image ports; do line Podman "podman:$id" - - "Image=$image; ports=$ports; container PHP unconfirmed";done
 fi
 line META COMPLETE - - 'Inventario limitado aos privilegios da conta; processos/pacotes/conteineres podem estar ocultos'
 REMOTE
-tcp_open() { timeout "$TIMEOUT" bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$1" "$2" >/dev/null 2>&1; }
 fingerprint() {
  local f=$1 apps='' name pat
- while IFS='|' read -r name pat; do
-  if grep -Eiq "$pat" "$f"; then apps="${apps}${apps:+; }$name (indicio)"; fi
+ while IFS='|' read -r name pat;do
+  if grep -Eiq "$pat" "$f";then apps="${apps}${apps:+; }$name (indicio)";fi
  done <<'PATTERNS'
-WordPress|wp-content/|wp-includes/|name=["\x27]generator[^>]*WordPress
+WordPress|wp-content/|wp-includes/|generator[^>]*WordPress
 Nextcloud|nextcloud|nc_sameSiteCookies
 Joomla|joomla|/media/system/
 Drupal|drupal|data-drupal|/sites/default/
 Laravel|laravel|laravel_session
 Magento|magento|/static/version[0-9]+/|mage/cookies
 MediaWiki|mediawiki|mw-config|wgCanonicalNamespace
-phpBB|phpbb|phpbb[0-9_]*=
+phpBB|phpbb
 WHMCS|whmcs|/templates/six/|/templates/twenty-one/
 PATTERNS
  printf '%s' "${apps:--}"
 }
+sanitize_error() {
+ clean "$1" | sed -E 's#(https?://)[^ /@]+@#\1[redacted]@#g; s#(https?://[^? ]+)\?[^ ]*#\1?[redacted]#g; s/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*[:=].*/\1=[redacted]/g; s/([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[=:][[:space:]]*[^ ;]*/\1=[redacted]/g'
+}
 scan_host() {
- local ip=$1 file="$WORK/$1.tsv" any=0 p scheme f rc ver app banner hostname='-' os='-' svc rid pkg detail typ remote_rc
+ local target=$1 index=$2 host=$1 connect=$1 file="$WORK/host-$2.tsv" any=0 p scheme f rc ver app banner detail svc address discovery http tls error_code error_detail redirect confidence failures='' php_hint fp
+ case "$target" in *=*) host=${target%%=*};connect=${target#*=};; esac
  : > "$file"
  for p in ${PORTS//,/ }; do
-  if tcp_open "$ip" "$p"; then
-   any=1; scheme=http; case ",$TLS_PORTS," in *",$p,"*) scheme=https;; esac
-   f="$WORK/$ip.$p.http"
-   local tls=(); [ "$INSECURE" -eq 0 ] || tls=(-k)
-   # No proxy, redirect, auth, cookies or extra probes. Bounded GET / only.
-   curl -q --silent --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${tls[@]}" \
-    --user-agent 'PHP-Audit/1.0 (authorized inventory)' "$scheme://$ip:$p/" 2>/dev/null | head -c 65536 > "$f"
-   rc=${PIPESTATUS[0]}
-   app=$(fingerprint "$f")
-   # PHP version only from response headers, never an arbitrary body string.
-   banner=$(awk 'BEGIN{IGNORECASE=1} /^\r?$/{exit} {s=tolower($0);if(s~/^(server|x-powered-by):/)print}' "$f" | tr '\r\n' ' ' | head -c 500)
-   ver=$(printf '%s' "$banner" | sed -nE 's/.*PHP\/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r]*).*/\1/p')
-   detail="TCP aberto; HTTP curl=$rc; ${banner:-sem banner PHP}; GET / limitado a 64 KiB; sem redirects"
-   [ "$INSECURE" -eq 0 ] || detail="$detail; certificado TLS nao validado"
-   svc=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
-   emit "$ip" - - "$svc:$p" "web:$p" "$app" "${ver:--}" - SIM "$detail" >> "$file"
-   rm -f -- "$f"
+  timeout "$TIMEOUT" bash -c 'exec 3<>/dev/tcp/$1/$2' _ "$connect" "$p" >/dev/null 2> "$WORK/tcp-$index.err"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+   error_code=TCP_FAILED; [ "$rc" -ne 124 ] || error_code=TCP_TIMEOUT
+   grep -qi 'refused' "$WORK/tcp-$index.err" && error_code=TCP_REFUSED
+   grep -Eqi 'Name or service not known|could not resolve|nodename nor servname|Temporary failure in name resolution|Name does not resolve' "$WORK/tcp-$index.err" && error_code=DNS_FAILURE
+   failures="$failures${failures:+ | }$p: $error_code; $(sanitize_error "$(head -c 400 "$WORK/tcp-$index.err")")"
+   continue
   fi
+  any=1;scheme=http;case ",$TLS_PORTS," in *",$p,"*) scheme=https;;esac
+  f="$WORK/response-$index";fp="$WORK/fingerprint-$index";local extra=()
+  [ "$INSECURE" -eq 0 ] || extra=(-k)
+  [ "$host" = "$connect" ] || extra+=(--resolve "$host:$p:$connect")
+  # A capped combined stream avoids unbounded temporary headers or bodies.
+  curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
+   --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
+   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err" | head -c 98304 > "$f"
+  rc=${PIPESTATUS[0]}
+  http=$(awk '/^HTTP\/[0-9.]+ [0-9]+/{code=$2}END{if(code+0>=200)print code}' "$f")
+  address=-
+  if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ]; then address=$(tail -n 1 "$f" | sed -nE 's/^AUDIT_META:[0-9]+:([0-9.]+)$/\1/p');fi
+  if [ -z "$address" ] || [ "$address" = - ]; then case "$connect" in *[!0-9.]* ) address=-;;*) address=$connect;;esac;fi
+  # Only the final response header block is eligible for version evidence.
+  awk '/^HTTP\/[0-9.]+ /{headers="";active=1;next} active{if($0~/^\r?$/){active=0;next}headers=headers $0 "\n"}END{printf "%s",headers}' "$f" > "$WORK/headers-$index"
+  banner=$(awk '{s=tolower($0);if(s~/^(server|x-powered-by):/)print}' "$WORK/headers-$index" | tr '\r\n' ' ' | head -c 1500)
+  ver=$(printf '%s' "$banner" | sed -nE 's/.*[Pp][Hh][Pp]\/([0-9]+\.[0-9]+\.[0-9]+[^ ;,\r]*).*/\1/p')
+  # Header cookie values never enter the fingerprint/report; names are enough.
+  awk 'BEGIN{active=1}/^HTTP\/[0-9.]+ /{active=1;next}active&&/^\r?$/{active=0;next}!active{print}' "$f" | head -c 65536 > "$fp"
+  printf '\n%s\n' "$banner" >> "$fp"
+  awk 'tolower($0)~/^set-cookie:/{sub(/^[^:]*:[ ]*/,"");split($0,a,"=");print a[1]}' "$WORK/headers-$index" >> "$fp"
+  app=$(fingerprint "$fp");php_hint=0
+  [ "$app" = - ] || php_hint=1
+  grep -Eiq 'PHPSESSID|(^|[^A-Za-z])PHP([^A-Za-z]|$)' "$fp" && php_hint=1
+  discovery=PHP_NOT_IDENTIFIED;[ "$php_hint" -eq 0 ] || discovery=PHP_NO_VERSION;[ -z "$ver" ] || discovery=PHP_VERSION_IDENTIFIED
+  [ -n "$http" ] || discovery=CONNECTION_ERROR
+  error_code='-';error_detail='-'
+  case "$rc" in
+   0) :;;
+   23) [ "$(wc -c < "$f")" -ge 98304 ] || error_code=HTTP_WRITE_FAILED;;
+   28) error_code=HTTP_TIMEOUT;; 35) error_code=TLS_HANDSHAKE_FAILED;;51|60) error_code=TLS_CERTIFICATE_INVALID;;77) error_code=TLS_CA_INVALID;;6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;18) error_code=BODY_INCOMPLETE;;52) error_code=HTTP_EMPTY_RESPONSE;;56) error_code=HTTP_READ_FAILED;;*) error_code="CURL_$rc";;
+  esac
+  [ "$error_code" = - ] || error_detail=$(sanitize_error "$(head -c 2000 "$WORK/curl-$index.err")")
+  tls=NOT_APPLICABLE
+  if [ "$scheme" = https ]; then tls=UNVERIFIED;[ -z "$http" ] || tls=VALIDATED;case "$error_code" in TLS_CERTIFICATE*|TLS_CA*) tls=FAILED;;esac;[ "$INSECURE" -eq 0 ] || tls=DISABLED;fi
+  redirect=-
+  case "$http" in 3??) redirect=$(awk 'tolower($0)~/^location:/{sub(/^[^:]*:[ ]*/,"");sub(/\r$/,"");print;exit}' "$WORK/headers-$index" | sed -E 's#[?#].*$##;s#(https?://)[^/@]+@#\1#g');;esac
+  confidence=LOW;[ -z "$ver" ] || confidence=MEDIUM;[ "$tls" != DISABLED ] || confidence=LOW
+  detail="TCP open; HTTP=${http:--}; curl=$rc; bounded GET /; no redirects"
+  [ "$tls" != DISABLED ] || detail="$detail; TLS validation explicitly disabled; no trust assurance"
+  svc=$(printf '%s' "$scheme" | tr '[:lower:]' '[:upper:]')
+  emit "$target" "$host" - "$svc:$p" "web:$p" "$app" "${ver:--}" - SIM "$detail" "${address:--}" "$discovery" "${http:--}" "$tls" "$error_code" "$error_detail" "${redirect:--}" "$confidence" >> "$file"
  done
- if [ -n "$SSH_USER" ]; then
-  local key=(); [ -z "$SSH_KEY" ] || key=(-i "$SSH_KEY")
-  timeout "$REMOTE_TIMEOUT" ssh -F /dev/null -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ClearAllForwardings=yes \
-   -o ForwardAgent=no -o ForwardX11=no -o PermitLocalCommand=no \
-   -o ConnectTimeout="$TIMEOUT" -o ConnectionAttempts=1 -o ServerAliveInterval=5 -o ServerAliveCountMax=1 \
-   -p "$SSH_PORT" "${key[@]}" "$SSH_USER@$ip" 'sh -s' < "$WORK/collector.sh" > "$WORK/$ip.remote" 2>/dev/null
-  remote_rc=$?
-  hostname=$(awk -F '\t' '$1=="META"&&$2=="HOST"{print $5;exit}' "$WORK/$ip.remote")
-  os=$(awk -F '\t' '$1=="META"&&$2=="OS"{print $5;exit}' "$WORK/$ip.remote")
-  [ -z "$os" ] || any=1
-  while IFS="$TAB" read -r svc rid ver pkg detail; do
-   [ "$svc" != META ] || continue
-   [ -n "$svc" ] || continue
-   emit "$ip" "${hostname:--}" "${os:--}" "$svc" "$rid" - "$ver" "$pkg" NA "$detail" >> "$file"
-  done < "$WORK/$ip.remote"
-  emit "$ip" "${hostname:--}" "${os:--}" SSH inventory - - - "$([ "$remote_rc" -eq 0 ] && printf SIM || printf DESCONHECIDO)" \
-   "SSH exit=$remote_rc; conclusao=$([ "$remote_rc" -eq 0 ] && printf recebido || printf parcial-ou-indisponivel); permissoes limitam cobertura" >> "$file"
-  # Add remote hostname/OS to endpoint rows without claiming a backend association.
-  awk -F '\t' -v OFS='\t' -v h="${hostname:--}" -v o="${os:--}" '{$2=h;$3=o;print}' "$file" > "$file.tmp" && mv -- "$file.tmp" "$file"
- fi
  if [ "$any" -eq 0 ]; then
-  emit "$ip" - - DISCOVERY host - - - DESCONHECIDO 'Sem resposta nas portas testadas; host desligado/filtrado ou servicos noutras portas; PHP nao excluido' >> "$file"
+  discovery=NO_WEB_SERVICE;error_code=NO_TCP_RESPONSE
+  case "$failures" in *DNS_FAILURE*) discovery=CONNECTION_ERROR;error_code=DNS_FAILURE;;esac
+  address=-;case "$connect" in *[!0-9.]*) :;;*) address=$connect;;esac
+  emit "$target" "$host" - DISCOVERY host - - - DESCONHECIDO 'No web service detected on tested ports; PHP is not ruled out' "$address" "$discovery" - - "$error_code" "$(sanitize_error "$failures")" - LOW >> "$file"
+ fi
+ if [ -n "$SSH_USER" ]; then
+  local key=();[ -z "$SSH_KEY" ] || key=(-i "$SSH_KEY")
+  timeout "$REMOTE_TIMEOUT" ssh -F /dev/null -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ClearAllForwardings=yes -o ForwardAgent=no -o ForwardX11=no -o PermitLocalCommand=no -o ConnectTimeout="$TIMEOUT" -o ConnectionAttempts=1 -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -p "$SSH_PORT" "${key[@]}" "$SSH_USER@$host" 'sh -s' < "$WORK/collector.sh" > "$WORK/remote-$index" 2> "$WORK/ssh-$index.err"
+  rc=$?;local remote_host remote_os
+  remote_host=$(awk -F '\t' '$1=="META"&&$2=="HOST"{print $5;exit}' "$WORK/remote-$index");remote_os=$(awk -F '\t' '$1=="META"&&$2=="OS"{print $5;exit}' "$WORK/remote-$index")
+  while IFS="$TAB" read -r svc rid ver pkg detail; do
+   [ "$svc" != META ] || continue;[ -n "$svc" ] || continue
+   emit "$target" "${remote_host:-$host}" "${remote_os:--}" "$svc" "$rid" - "$ver" "$pkg" NA "$(sanitize_error "$detail")" >> "$file"
+  done < "$WORK/remote-$index"
+  error_code=-;error_detail=-
+  if [ "$rc" -ne 0 ] || ! grep -q 'META.COMPLETE' "$WORK/remote-$index"; then error_code=SSH_FAILED;error_detail="SSH exit=$rc; $(sanitize_error "$(head -c 1600 "$WORK/ssh-$index.err")")";fi
+  emit "$target" "${remote_host:-$host}" "${remote_os:--}" SSH inventory - - - NA "SSH exit=$rc; permissions limit coverage" - INVENTORY_COMPLETE - - "$error_code" "$error_detail" - LOW >> "$file"
  fi
 }
 if [ -z "$SIMULATE" ]; then
- printf 'Auditoria: %s IPs; concorrencia %s.\n' "$(wc -l < "$WORK/targets")" "$CONCURRENCY"
- n=0
- while IFS= read -r ip; do
-  scan_host "$ip" &
-  n=$((n+1)); if [ "$n" -ge "$CONCURRENCY" ]; then wait; n=0; fi
- done < "$WORK/targets"
+ printf '%s: %s targets; concurrency=%s.\n' "$(t scanning)" "$(wc -l < "$WORK/targets")" "$CONCURRENCY"
+ n=0;index=0
+ while IFS= read -r target; do index=$((index+1));scan_host "$target" "$index" & n=$((n+1));if [ "$n" -ge "$CONCURRENCY" ];then wait;n=0;fi;done < "$WORK/targets"
  wait
- emit IP Hostname OS Service Runtime Application PHPVersion Package Reachable Evidence > "$WORK/observations.tsv"
- while IFS= read -r ip; do
-  if [ -s "$WORK/$ip.tsv" ]; then cat -- "$WORK/$ip.tsv" >> "$WORK/observations.tsv"; else
-   emit "$ip" - - DISCOVERY host - - - DESCONHECIDO 'Falha interna do worker; recolha incompleta' >> "$WORK/observations.tsv"
-  fi
+ emit IP Hostname OS Service Runtime Application PHPVersion Package Reachable Evidence Address DiscoveryCode HTTPStatus TLSValidation ErrorCode ErrorDetail RedirectTo Confidence > "$WORK/observations.tsv"
+ index=0
+ while IFS= read -r target; do
+  index=$((index+1));if [ -s "$WORK/host-$index.tsv" ];then cat -- "$WORK/host-$index.tsv" >> "$WORK/observations.tsv";else emit "$target" - - DISCOVERY host - - - DESCONHECIDO 'Worker failed; partial coverage' - CONNECTION_ERROR - - WORKER_FAILED 'Worker produced no observations' - LOW >> "$WORK/observations.tsv";fi
  done < "$WORK/targets"
+ if [ "$LOCAL_INVENTORY" -eq 1 ]; then
+  timeout "$REMOTE_TIMEOUT" sh "$WORK/collector.sh" > "$WORK/local" 2> "$WORK/local.err";rc=$?
+  local_host=$(hostname 2>/dev/null);local_os=$(uname -s)
+  while IFS="$TAB" read -r svc rid ver pkg detail;do [ "$svc" != META ] || continue;[ -n "$svc" ] || continue;emit local "${local_host:--}" "$local_os" "$svc" "$rid" - "$ver" "$pkg" NA "$(sanitize_error "$detail")" >> "$WORK/observations.tsv";done < "$WORK/local"
+  error_code=-;error_detail=-;if [ "$rc" -ne 0 ] || ! grep -q 'META.COMPLETE' "$WORK/local";then error_code=LOCAL_FAILED;error_detail="Local exit=$rc; $(sanitize_error "$(head -c 1000 "$WORK/local.err")")";fi
+  emit local "${local_host:--}" "$local_os" LOCAL inventory - - - NA "Local inventory exit=$rc; permissions limit coverage" - INVENTORY_COMPLETE - - "$error_code" "$error_detail" - LOW >> "$WORK/observations.tsv"
+ fi
 fi
-# Validate input protocols. Empty fields prohibited to avoid Bash IFS collapsing tabs.
-awk -F '\t' 'NR==1{if($0!="IP\tHostname\tOS\tService\tRuntime\tApplication\tPHPVersion\tPackage\tReachable\tEvidence")exit 2;next} NF!=10{exit 2} {for(i=1;i<=10;i++)if($i=="")exit 2} END{if(NR<2)exit 2}' "$WORK/observations.tsv" || die 'Observacoes TSV invalidas'
+# Accept the original 10-column simulation protocol and the extended 18-column form.
+awk -F '\t' -v OFS='\t' 'NR==1{if($1!="IP"||$4!="Service"||$10!="Evidence")exit 2;print "IP\tHostname\tOS\tService\tRuntime\tApplication\tPHPVersion\tPackage\tReachable\tEvidence\tAddress\tDiscoveryCode\tHTTPStatus\tTLSValidation\tErrorCode\tErrorDetail\tRedirectTo\tConfidence";next}NF!=10&&NF!=18{exit 2}{for(i=1;i<=NF;i++)if($i=="")exit 2;for(i=NF+1;i<=18;i++)$i="-";print}END{if(NR<2)exit 2}' "$WORK/observations.tsv" > "$WORK/normalized" || die 'Observacoes TSV invalidas'
+mv -- "$WORK/normalized" "$WORK/observations.tsv"
+
 mkdir -p -- "$OUT" || die 'Diretorio de relatorios indisponivel'
 RUN=$(mktemp -d "$OUT/php-audit-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX") || die 'Falha a criar diretorio da execucao'
 translate_detail() {
@@ -515,76 +669,94 @@ translate_detail() {
 CSV="$RUN/report.csv" HTML="$RUN/report.html"
 csv_cell() {
  local v=$1
- if [[ "$v" =~ ^[[:space:]]*[=+@-] ]]; then v="'$v"; fi
- v=${v//\"/\"\"}; printf '"%s"' "$v"
+ [ "$v" != - ] || v=''
+ if [[ "$v" =~ ^[[:space:]]*[=+@-] ]];then v="'$v";fi
+ v=${v//\"/\"\"};printf '"%s"' "$v"
 }
 html_cell() {
- local v=$1
- v=${v//&/'&amp;'}; v=${v//</'&lt;'}; v=${v//>/'&gt;'}; v=${v//\"/'&quot;'}; v=${v//\'/'&#39;'}
- printf '%s' "$v"
+ local v=$1;[ "$v" != - ] || v=''
+ v=${v//&/'&amp;'};v=${v//</'&lt;'};v=${v//>/'&gt;'};v=${v//\"/'&quot;'};v=${v//\'/'&#39;'};printf '%s' "$v"
 }
-csv_row() { local sep='' x; for x in "$@"; do printf '%s' "$sep"; csv_cell "$x"; sep=,; done; printf '\r\n'; }
-csv_row IP "$(t host)" "$(t os)" "$(t service)" "$(t runtime)" "$(t app)" PHP "$(t package)" CVEs "$(t status)" "$(t risk)" "$(t reachable)" "$(t public)" "$(t evidence)" "$(t recommendation)" > "$CSV"
-: > "$WORK/rows.html"; : > "$WORK/status"
-while IFS="$TAB" read -r ip hostname os svc rid app ver pkg reachable detail; do
- [ "$ip" != IP ] || continue
- verified=FALSE; a=UNKNOWN; b=UNKNOWN
- # Optional existing attestation support; never requested in the normal workflow.
- if [ -n "$EVIDENCE_FILE" ]; then
-  match=$(awk -F '\t' -v ip="$ip" -v s="$svc" -v r="$rid" '$1==ip&&$2==s&&$3==r{print}' "$EVIDENCE_FILE")
-  if [ -n "$match" ]; then
+csv_row() { local sep='' x;for x in "$@";do printf '%s' "$sep";csv_cell "$x";sep=,;done;printf '\r\n';}
+printf '\357\273\277' > "$CSV"
+csv_row "$(t target)" IP "$(t host)" "$(t os)" "$(t group)" "$(t service)" DiscoveryCode "$(t discovery)" PHP CVEs VulnerabilityCode "$(t vulnerability)" "$(t risk)" "$(t confidence)" HTTP "$(t tls)" "$(t errorCode)" "$(t error)" "$(t redirect)" "$(t app)" "$(t runtime)" "$(t package)" "$(t reachable)" "$(t public)" "$(t evidence)" "$(t recommendation)" >> "$CSV"
+for group in WEB INVENTORY NO_RESPONSE ERRORS;do : > "$WORK/$group.html";done
+: > "$WORK/stats"
+while IFS="$TAB" read -r target hostname os svc rid app ver pkg reachable detail address discovery http tls error_code error_detail redirect confidence;do
+ [ "$target" != IP ] || continue
+ verified=FALSE;a=UNKNOWN;b=UNKNOWN
+ if [ -n "$EVIDENCE_FILE" ];then
+  match=$(awk -F '\t' -v ip="$target" -v s="$svc" -v r="$rid" '$1==ip&&$2==s&&$3==r{print}' "$EVIDENCE_FILE")
+  if [ -n "$match" ];then
    IFS="$TAB" read -r eip es er ev ep ea eb ef ed eu el <<< "$match"
-   if [ "$ed" = "$TODAY" ] && [ "$ef" = TRUE ] && [ "$eu" != - ] && [[ "$el" =~ ^https://[^[:space:]@]+$ ]] && \
-    [[ "$ev" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && { [ "$ver" = - ] || [ "$ver" = "$ev" ]; } && \
-    { [ "$pkg" = - ] || [ "$pkg" = "$ep" ]; } && [ "$svc" != CLI ] && [ "$svc" != PACKAGE ] && [ "$svc" != DISCOVERY ] && [ "$svc" != SSH ]; then
+   if [ "$ed" = "$TODAY" ] && [ "$ef" = TRUE ] && [ "$eu" != - ] && [[ "$el" =~ ^https://[^[:space:]@]+$ ]] && [[ "$ev" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && { [ "$ver" = - ] || [ "$ver" = "$ev" ]; } && { [ "$pkg" = - ] || [ "$pkg" = "$ep" ]; } && [[ "$svc" =~ ^HTTPS?:|PHP-FPM|mod_php|php.*cgi|lsphp|frankenphp ]];then
     state=$(version_state "$ev")
-    if { [ "$ea" != FIXED ] || [ "$eb" != FIXED ]; } || [ "$state" = FIXED_VERSION ] || [ "$ep" != - ]; then
-     verified=TRUE; a=$ea; b=$eb; ver=$ev; pkg=$ep
-     detail="$detail; $eu; $ed; $el; CVE-109618=$a; CVE-109619=$b"
-    fi
-   fi
+    if { [ "$ea" != FIXED ] || [ "$eb" != FIXED ]; } || [ "$state" = FIXED_VERSION ] || [ "$ep" != - ];then
+     verified=TRUE;a=$ea;b=$eb;ver=$ev;pkg=$ep;detail="$detail; reviewed: $eu; $ed; $el; CVE109618=$a; CVE109619=$b"
+    else detail="$detail; rejected: backport requires exact package/build";fi
+   else detail="$detail; ignored: stale, mismatched or incomplete attestation";fi
   fi
  fi
  code=$(classify "$ver" "$svc" "$verified" "$a" "$b")
- exposure=$(t unknownValue); grep -Fxq "$ip" "$WORK/public" && exposure=$(t declared)
- risk=$(t undetermined); action=$(t unknownAction); css=unknown
+ vcode=INCONCLUSIVE;status=$(t inconclusive);risk=$(t undetermined);action=$(t unknownAction)
  case "$code" in
- VULNERAVEL) status=$(t vulnerable); risk=$(t high); action=$(t vulnAction); css=bad; [ "$exposure" != "$(t declared)" ] || risk=$(t critical);;
- CORRIGIDO) status=$(t fixed); risk=$(t low); action=$(t fixAction); css=good;;
- 'POTENCIALMENTE VULNERAVEL') status=$(t potential); risk=$(t high); action=$(t oldAction); css=warn;;
- *) status=$(t inconclusive);;
+ VULNERAVEL) vcode=VULNERABLE_CONFIRMED;status=$(t vulnerable);risk=$(t high);action=$(t vulnAction);;
+ CORRIGIDO) vcode=FIXED;status=$(t fixed);risk=$(t low);action=$(t fixAction);;
+ 'POTENCIALMENTE VULNERAVEL') vcode=POTENTIALLY_VULNERABLE;status=$(t potential);risk=$(t high);action=$(t oldAction);;
  esac
+ group=INVENTORY;group_label=$(t inventoryGroup)
+ case "$svc" in
+ HTTP:*|HTTPS:*) group=WEB;group_label=$(t webGroup);if [ "$discovery" = - ];then discovery=PHP_NOT_IDENTIFIED;[ "$app" = - ] || discovery=PHP_NO_VERSION;[ "$ver" = - ] || discovery=PHP_VERSION_IDENTIFIED;fi;;
+ DISCOVERY) group=NO_RESPONSE;group_label=$(t noWebGroup);[ "$discovery" != - ] || discovery=NO_WEB_SERVICE;;
+ *) if [ "$discovery" = - ];then discovery=INVENTORY_OTHER;case "$svc" in WinRM|SSH|LOCAL) discovery=INVENTORY_COMPLETE;;*PHP*|*php*|CLI) discovery=INVENTORY_PHP;;esac;[ "$ver" = - ] || discovery=INVENTORY_PHP;case "$pkg" in *php*) discovery=INVENTORY_PHP;;esac;fi;;
+ esac
+ if [ "$svc" = Docker ] || [ "$svc" = Podman ];then image_hint=${detail#*=};image_hint=${image_hint%%;*};case "$image_hint" in *php*) discovery=INVENTORY_PHP;;esac;fi
+ if [ "$svc" = COLLECTION ];then discovery=INVENTORY_ERROR;error_code=INVENTORY_PARTIAL;error_detail=$detail;fi
+ if [ "$group" = INVENTORY ] && [ "$error_code" != - ];then discovery=INVENTORY_ERROR;fi
+ [ "$confidence" != - ] || confidence=LOW
+ [ "$ver" = - ] || confidence=MEDIUM;[ "$verified" != TRUE ] || confidence=HIGH;[ "$tls" != DISABLED ] || confidence=LOW
+ if [ "$vcode" = INCONCLUSIVE ];then
+  case "$discovery" in NO_WEB_SERVICE) action=$(t noWebAction);;PHP_NOT_IDENTIFIED) action=$(t noPhpAction);;PHP_NO_VERSION) action=$(t noVersionAction);;CONNECTION_ERROR) action=$(t connectAction);;*) [ "$group" != INVENTORY ] || action=$(t inventoryAction);;esac
+  case "$error_code" in TLS_CERTIFICATE*|TLS_CA*) action=$(t tlsAction);;-|NO_TCP_RESPONSE) :;;*) action=$(t connectAction);;esac
+  case "$error_code" in INVENTORY_PARTIAL|LOCAL_FAILED) action=$(t inventoryAction);;SSH_FAILED|WINRM_FAILED) action=$(t remoteAction);;esac
+  [ "$redirect" = - ] || action=$(t redirectAction)
+ fi
+ exposure=$(t unknownValue);if grep -Fxq "$target" "$WORK/public" || grep -Fxq "$address" "$WORK/public" || grep -Fxq "${target%%=*}" "$WORK/public";then exposure=$(t declared);[ "$vcode" != VULNERABLE_CONFIRMED ] || risk=$(t critical);fi
+ [ "$address" != - ] || { case "$target" in *[!0-9.]*) :;;*) address=$target;;esac; }
  case "$reachable" in SIM) reachable=$(t yes);;NA) reachable=$(t na);;SIMULADO) reachable=SIMULATED;;*) reachable=$(t unknownValue);;esac
- if [ "$LANGUAGE" = en ]; then app=${app//indicio/hint}; detail=$(translate_detail "$detail"); else app=${app//indicio/indício}; fi
- csv_row "$ip" "$hostname" "$os" "$svc" "$rid" "$app" "$ver" "$pkg" "$CVES" "$status" "$risk" "$reachable" "$exposure" "$detail" "$action" >> "$CSV"
- printf '%s\n' "$code" >> "$WORK/status"
+ if [ "$LANGUAGE" = en ];then app=${app//indicio/hint};detail=$(translate_detail "$detail");else app=${app//indicio/indício};fi
+ detail=$(sanitize_error "$detail; CVE109618=$a; CVE109619=$b");error_detail=$(sanitize_error "$error_detail")
+ csv_row "$target" "$address" "$hostname" "$os" "$group_label" "$svc" "$discovery" "$(t "$discovery")" "$ver" "$CVES" "$vcode" "$status" "$risk" "$(t "confidence_$confidence")" "$http" "$tls" "$error_code" "$error_detail" "$redirect" "$app" "$rid" "$pkg" "$reachable" "$exposure" "$detail" "$action" >> "$CSV"
+ emit "$target" "$group" "$http" "$discovery" "$error_code" "$vcode" "$address" >> "$WORK/stats"
  {
-  printf '<tr class="%s"><td><strong>' "$css"; html_cell "$ip"; printf '</strong>'
-  [ "$hostname" = - ] || { printf '<br>'; html_cell "$hostname"; }
-  printf '<details><summary>%s</summary><p>' "$(t details)"
-  html_cell "$(t os): $os | $(t runtime): $rid | $(t package): $pkg | $(t reachable): $reachable | $(t public): $exposure | $(t risk): $risk"
-  printf '</p><p>'; html_cell "$detail"; printf '</p></details></td>'
-  for value in "$svc" "$app" "$ver" "$status" "$action"; do printf '<td>'; html_cell "$value"; printf '</td>'; done
-  printf '</tr>\n'
- } >> "$WORK/rows.html"
+  printf '<tr><td><strong>';html_cell "$target";printf '</strong><details><summary>%s</summary><p>' "$(t details)"
+  html_cell "IP=$address; $(t host)=$hostname; $(t os)=$os; $rid; $pkg; HTTP=$http; TLS=$tls; $error_code; $error_detail; $(t redirect)=$redirect; $(t public)=$exposure; $detail"
+  printf '</p></details></td>'
+  for value in "$svc" "$(t "$discovery")" "$ver" "$status" "$(t "confidence_$confidence")" "$action";do printf '<td>';html_cell "$value";printf '</td>';done;printf '</tr>\n'
+ } > "$WORK/row.html"
+ cat "$WORK/row.html" >> "$WORK/$group.html"
+ case "$error_code" in -|NO_TCP_RESPONSE) :;;*) cat "$WORK/row.html" >> "$WORK/ERRORS.html";;esac
 done < "$WORK/observations.tsv"
-count_all=$(wc -l < "$WORK/status")
-count_attention=$(awk '$0=="VULNERAVEL"||$0=="POTENCIALMENTE VULNERAVEL"{n++}END{print n+0}' "$WORK/status")
-count_unknown=$(grep -Fxc INCONCLUSIVO "$WORK/status" || :)
+table() {
+ printf '<div class="table"><table><thead><tr>'
+ for key in target service discovery php vulnerability confidence action;do printf '<th scope="col">%s</th>' "$(t "$key")";done
+ printf '</tr></thead><tbody>';cat "$WORK/$1.html";printf '</tbody></table></div>'
+}
 {
- printf '<!doctype html><html lang="%s"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>%s</title>' "$LANGUAGE" "$(t title)"
- cat <<'CSS'
-<style>body{font:15px system-ui,sans-serif;color:#183047;background:#f3f6fa;margin:0;padding:24px}main{max-width:1200px;margin:auto}h1{margin-bottom:6px}p{line-height:1.5}.muted,summary{color:#52677c}.stats{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}.stats div{padding:16px;background:white;border:1px solid #d6e0e9;border-radius:8px}.stats strong{font-size:24px;display:block}.table{overflow:auto;background:white;border-radius:8px}table{width:100%;border-collapse:collapse}th,td{padding:12px;text-align:left;vertical-align:top;border-bottom:1px solid #dde5ee}th{background:#143a5e;color:white}td{overflow-wrap:anywhere}details{font-size:12px;max-width:320px;margin-top:8px}summary{cursor:pointer}.warn td:first-child{border-left:5px solid #d98b13}.bad td:first-child{border-left:5px solid #c42e34}.good td:first-child{border-left:5px solid #228157}.unknown td:first-child{border-left:5px solid #8a99a6}footer{font-size:13px;margin-top:20px}@media print{body{padding:0}.table{overflow:visible}table{font-size:11px}details{display:block}}</style><main>
-CSS
- printf '<h1>%s</h1><p class="muted">%s · %s</p>' "$(t title)" "$CVES" "$(date -u +%FT%TZ)"
+ printf '<!doctype html><html lang="%s"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>%s</title>' "$LANGUAGE" "$(t title)"
+ cat <<'STYLE'
+<style>body{font:14px system-ui,sans-serif;color:#183047;background:#f3f6fa;margin:0;padding:24px}main{max-width:1500px;margin:auto}p{line-height:1.6}.stats{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}.stats div{padding:14px;background:white;border:1px solid #d6e0e9;border-radius:6px}.stats strong{font-size:24px;display:block}.table{overflow:auto;background:white}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;vertical-align:top;border-bottom:1px solid #dde5ee}th{background:#143a5e;color:white}td{overflow-wrap:anywhere}td details{font-size:12px;max-width:390px}summary{cursor:pointer;color:#385a75}.no-response{margin-top:25px}footer{font-size:12px;margin-top:25px}@media print{body{padding:0}.table{overflow:visible}table{font-size:10px}}</style></head><body><main>
+STYLE
+ printf '<h1>%s</h1><p>%s · %s UTC</p>' "$(t title)" "$CVES" "$(date -u +%FT%T)"
  [ -z "$SIMULATE" ] || printf '<p><strong>%s</strong></p>' "$(t simulated)"
- printf '<p><strong>%s:</strong> ' "$(t scope)"; html_cell "${TARGETS:-${TARGET_FILE:--}}"; printf '</p>'
- printf '<div class="stats"><div><strong>%s</strong>%s</div><div><strong>%s</strong>%s</div><div><strong>%s</strong>%s</div><div><strong>%s</strong>%s</div></div>' \
-  "$(awk -F '\t' 'NR>1{print $1}' "$WORK/observations.tsv" | sort -u | wc -l)" "$(t hosts)" "$count_all" "$(t results)" "$count_attention" "$(t attention)" "$count_unknown" "$(t unknown)"
- printf '<p>%s</p><p>%s</p><div class="table"><table><thead><tr>' "$(t next)" "$(t explain)"
- for key in host service app php status action; do printf '<th>%s</th>' "$(t "$key")"; done
- printf '</tr></thead><tbody>'; cat "$WORK/rows.html"; printf '</tbody></table></div>'
- printf '<footer><p>%s</p><p><strong>%s:</strong> %s</p><a href="https://www.php.net/archive/2026.php">%s</a> · 2026-10-22</footer></main></html>' "$(t versions)" "$(t limits)" "$(t limitText)" "$(t source)"
+ printf '<p><strong>%s:</strong> ' "$(t scope)";html_cell "${TARGETS:-local}";printf '</p><div class="stats">'
+ while read -r key count;do printf '<div><strong>%s</strong>%s</div>' "$count" "$(t "$key")";done < <(
+  awk -F '\t' '{targets[$1]=1;if($2=="WEB"){tcp++;if($7!="-")candidate[$7]=1;if($3~/^[0-9]+$/&&$3+0>0){http++;web[$1]=1}}if($2=="NO_RESPONSE")no++;if($4~/^PHP_(NO_VERSION|VERSION_IDENTIFIED)$/||$4=="INVENTORY_PHP")php[$1]=1;if($5!="-"&&$5!="NO_TCP_RESPONSE")errors++;if($6=="VULNERABLE_CONFIRMED"||$6=="POTENTIALLY_VULNERABLE")attention++}END{for(k in targets)n++;for(k in candidate)c++;for(k in web)w++;for(k in php)p++;print "targetCount",n+0;print "results",NR;print "tcpCount",tcp+0;print "candidateHosts",c+0;print "webCount",http+0;print "webHosts",w+0;print "noWebCount",no+0;print "phpCount",p+0;print "errorCount",errors+0;print "attention",attention+0}' "$WORK/stats"
+ )
+ printf '</div><p>%s</p><p>%s</p><h2>%s (%s)</h2>' "$(t summaryNote)" "$(t explain)" "$(t webGroup)" "$(wc -l < "$WORK/WEB.html")";table WEB
+ for group in INVENTORY ERRORS;do if [ -s "$WORK/$group.html" ];then key=inventoryGroup;[ "$group" != ERRORS ] || key=errorsGroup;printf '<h2>%s (%s)</h2>' "$(t "$key")" "$(wc -l < "$WORK/$group.html")";table "$group";fi;done
+ if [ -s "$WORK/NO_RESPONSE.html" ];then printf '<details class="no-response"><summary>%s (%s)</summary>' "$(t noWebGroup)" "$(wc -l < "$WORK/NO_RESPONSE.html")";table NO_RESPONSE;printf '</details>';fi
+ printf '<footer><p>%s</p><p>%s</p><a href="https://www.php.net/archive/2026.php#2026-10-21-5">%s</a></footer></main></body></html>' "$(t versions)" "$(t limitText)" "$(t source)"
 } > "$HTML" || die 'HTML write failed'
 [ -s "$CSV" ] && [ -s "$HTML" ] || die 'Incomplete reports'
 printf '%s:\n%s\n%s\n' "$(t done)" "$HTML" "$CSV"

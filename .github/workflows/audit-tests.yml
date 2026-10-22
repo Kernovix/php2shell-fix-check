@@ -1,0 +1,60 @@
+name: Test audit scripts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PHP-Audit.ps1'
+      - 'php_audit.sh'
+      - 'tests/**'
+      - '.github/workflows/audit-tests.yml'
+  pull_request:
+    paths:
+      - 'PHP-Audit.ps1'
+      - 'php_audit.sh'
+      - 'tests/**'
+      - '.github/workflows/audit-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: GNU timeout for Bash 3.2 compatibility tests
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew list coreutils >/dev/null 2>&1 || brew install coreutils
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
+          echo "OPENSSL=$(brew --prefix openssl@3)/bin/openssl" >> "$GITHUB_ENV"
+      - name: Linux Bash and PowerShell 7
+        if: runner.os == 'Linux'
+        env:
+          AUDIT_TEST_ENGINES: bash,pwsh
+        run: node tests/run-tests.cjs
+      - name: Windows PowerShell 5.1, PowerShell 7 and Git Bash
+        if: runner.os == 'Windows'
+        env:
+          AUDIT_TEST_ENGINES: ps51,pwsh,bash
+        run: node tests/run-tests.cjs
+      - name: Bash 3.2 syntax and behavior
+        if: runner.os == 'macOS'
+        env:
+          AUDIT_TEST_ENGINES: bash
+          AUDIT_BASH: /bin/bash
+        run: |
+          /bin/bash --version
+          node tests/run-tests.cjs
