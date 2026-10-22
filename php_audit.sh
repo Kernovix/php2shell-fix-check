@@ -530,6 +530,9 @@ scan_host() {
   tcp_connected=0
   [ -z "$http" ] || tcp_connected=1
   awk -v n="${connect_time:-0}" 'BEGIN{exit !(n+0>0)}' && tcp_connected=1
+  # Some curl backends report a zero connect duration on an immediate peer close.
+  # A recorded peer address plus a post-connect error still identifies a candidate.
+  case "$rc" in 6|7|28) :;;*) [ -z "$address" ] || [ "$address" = - ] || tcp_connected=1;;esac
   case "$rc" in 35|51|60) tcp_connected=1;;esac
   if [ "$tcp_connected" -eq 0 ];then
    error_code=TCP_FAILED;case "$rc" in 6) error_code=DNS_FAILURE;;28) error_code=TCP_TIMEOUT;;77) error_code=TLS_CA_INVALID;;esac

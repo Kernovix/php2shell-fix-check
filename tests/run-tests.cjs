@@ -127,6 +127,7 @@ async function simulated(engine,observations,evidence=[]){
       const timeout=await audit(engine,'slow.test=127.0.0.1',[httpPort]);
       check(/TIMEOUT/.test(timeout.rows[0]?.['Error code']),'timeout classified');
       const malformed=await audit(engine,'127.0.0.1',[rawPort]);
+      if(malformed.rows[0]?.DiscoveryCode!=='CONNECTION_ERROR')console.error(malformed.rows.map(r=>({discovery:r.DiscoveryCode,error:r['Error code'],detail:r['Technical error'],evidence:r.Evidence})));
       check(malformed.rows[0]?.DiscoveryCode==='CONNECTION_ERROR','non-HTTP port not confirmed as web');
       const dns=await audit(engine,'localhost',[httpPort]);
       check(dns.rows[0]?.HTTP==='200'&&dns.rows[0]?.IP==='127.0.0.1','DNS hostname resolution');
