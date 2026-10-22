@@ -521,14 +521,26 @@ scan_host() {
   [ "$INSECURE" -eq 0 ] || extra=(-k)
   [ "$host" = "$connect" ] || extra+=(--resolve "$host:$p:$connect")
   # A capped combined stream avoids unbounded temporary headers or bodies.
-  {
-   curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
-   --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
-   --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err"
-   printf '%s\n' "$?" > "$WORK/curl-$index.status"
-  } | head -c 98304 > "$f"
-  # Explicit status transport also works with older Bash background pipelines.
-  rc=125;if [ -s "$WORK/curl-$index.status" ];then IFS= read -r rc < "$WORK/curl-$index.status";fi
+  if [ "${BASH_VERSINFO[0]}" -lt 4 ];then
+   # A regular file avoids legacy background-pipeline races. POSIX -f units
+   # are 512 bytes: the child may write at most 96 KiB, including headers.
+   (
+    set -o posix
+    ulimit -f 192 || exit 125
+    curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
+     --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
+     --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" > "$f" 2> "$WORK/curl-$index.err"
+   )
+   rc=$?
+  else
+   {
+    curl -q --ipv4 --silent --show-error --include --noproxy '*' --proto '=http,https' --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT*3))" "${extra[@]}" \
+     --user-agent 'PHP-Audit/2.0 (authorized read-only inventory)' --header 'Accept-Encoding: identity' \
+     --write-out '\nAUDIT_META:%{http_code}:%{remote_ip}:%{time_connect}\n' "$scheme://$host:$p/" 2> "$WORK/curl-$index.err"
+    printf '%s\n' "$?" > "$WORK/curl-$index.status"
+   } | head -c 98304 > "$f"
+   rc=125;if [ -s "$WORK/curl-$index.status" ];then IFS= read -r rc < "$WORK/curl-$index.status";fi
+  fi
   http=$(awk '/^HTTP\/[0-9.]+ [0-9]+/{code=$2}END{if(code+0>=200)print code}' "$f")
   address=-;connect_time=0
   if [ "$rc" -ne 23 ] && [ "$(wc -c < "$f")" -lt 98304 ];then
@@ -577,7 +589,7 @@ scan_host() {
   error_code='-';error_detail='-'
   case "$rc" in
    0) :;;
-   23) [ "$(wc -c < "$f")" -ge 98304 ] || error_code=HTTP_WRITE_FAILED;;
+   23|63|152|153) [ "$(wc -c < "$f")" -ge 98304 ] || error_code=HTTP_WRITE_FAILED;;
    28) error_code=REQUEST_TIMEOUT;; 35) error_code=TLS_HANDSHAKE_FAILED;;51|60) error_code=TLS_CERTIFICATE_INVALID;;77) error_code=TLS_CA_INVALID;;6) error_code=DNS_FAILURE;;7) error_code=TCP_FAILED;;18) error_code=BODY_INCOMPLETE;;52) error_code=HTTP_EMPTY_RESPONSE;;56) error_code=HTTP_READ_FAILED;;*) error_code="CURL_$rc";;
   esac
   [ "$error_code" = - ] || error_detail=$(sanitize_error "$(head -c 2000 "$WORK/curl-$index.err")")
