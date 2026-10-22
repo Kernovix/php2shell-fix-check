@@ -165,6 +165,7 @@ async function simulated(engine,observations,evidence=[]){
         check(large.rows.filter(r=>r['Error code']==='TLS_CERTIFICATE_INVALID').length===15,'15 TLS errors retained');
         check(large.html.includes('<strong>9</strong>HTTP/HTTPS responses'),'only 9 actual HTTP responses counted');
         check(large.html.includes('<strong>18</strong>IPs with candidate ports'),'18 candidate IPs not confused with 24 ports');
+        check(large.html.includes('<strong>15</strong>Connection/collection errors'),'unknown optional fields do not become errors or redirects');
         check(large.html.includes('<strong>260</strong>Results'),'observation total shown');
       }
       if((win&&engine.id!=='bash')||(!win&&engine.id==='bash')){

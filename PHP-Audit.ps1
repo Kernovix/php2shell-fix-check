@@ -642,7 +642,10 @@ $labels=@{
  limitText=@('Só os alvos e portas autorizados são analisados. DNS/SNI identifica o site pedido; não enumera todos os sites virtuais nem backends. Redirecionamentos não são seguidos. Inventário depende das permissões e não entra nos contentores. Exposição pública é declarada pelo técnico. Sem exploits ou alterações nos alvos.','Only authorized targets and ports are checked. DNS/SNI selects the requested site; it does not enumerate every virtual host or backend. Redirects are not followed. Inventory depends on permissions and does not enter containers. Public exposure is technician-declared. No exploits or target changes.');
 }
 foreach($key in $labels.Keys){$Text[$key]=$labels[$key]}
-function Get-Optional($Object,[string]$Name,[string]$Default='') {if($Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name){return [string]$Object.$Name};$Default}
+function Get-Optional($Object,[string]$Name,[string]$Default='') {
+    if($Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name -and [string]$Object.$Name -ne '-') {return [string]$Object.$Name}
+    $Default
+}
 function Sanitized-Detail([string]$Value){
     $s=Convert-SafeCell $Value
     $s=$s -replace '(?i)(https?://)[^/\s@]+@','$1[redacted]@'
